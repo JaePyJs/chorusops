@@ -23,10 +23,20 @@ import { geminiClient } from './gemini';
 // Main entrypoint for bot transcripts or messages.
 app.post('/agent/invoke', async (req: Request, res: Response) => {
   try {
-    const { conversationId, text, speakerId, type } = req.body;
+    const { conversationId, text, speakerId } = req.body;
     
     if (!conversationId || !text) {
       return res.status(400).json({ error: 'Missing conversationId or text' });
+    }
+
+    // Robust validation for conversationId to prevent junk format attacks
+    if (typeof conversationId !== 'string' || conversationId.length > 100 || !/^[a-zA-Z0-9\-_]+$/.test(conversationId)) {
+      return res.status(400).json({ error: 'Invalid conversationId format' });
+    }
+
+    // Input length limit of 4000 characters to protect against token exhaustion
+    if (typeof text !== 'string' || text.length > 4000) {
+      return res.status(400).json({ error: 'Input text is too long (maximum 4000 characters)' });
     }
 
     let conversation = db.conversations.get(conversationId);
@@ -93,10 +103,7 @@ app.get('/agent/status/:workflow_id', (req: Request, res: Response) => {
   });
 });
 
-import { startWorker } from '../worker/worker';
-
-// --- Start Server and Worker ---
+// --- Start Server ---
 app.listen(port, () => {
   console.log(`[Backend] Server listening on port ${port}`);
-  startWorker();
 });
