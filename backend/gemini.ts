@@ -116,9 +116,9 @@ Keep replies concise and natural — your response may be read aloud in a voice 
 `;
 
 export class GeminiClient {
-  // Fix #1: chatSessions is rebuilt from db on demand, surviving restarts.
-  // We keep live Chat objects in-memory for the duration of a process, but
-  // history is also written to db so it can be replayed after a restart.
+  // In-process Chat object cache. If a session is not found here, it is rebuilt
+  // from the in-memory db history so we don't lose prior context within the same process run.
+  // Full restart persistence would require persisting chatHistories to disk.
   private chatSessions: Map<string, Chat> = new Map();
 
   async processInput(conversationId: string, userInput: string): Promise<string> {

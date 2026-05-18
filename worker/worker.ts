@@ -4,31 +4,36 @@ import { featherlessClient } from './featherless';
 const POLL_INTERVAL_MS = 5000;
 
 export function startWorker() {
-  console.log(`[Worker] Started polling for jobs every ${POLL_INTERVAL_MS}ms...`);
-  
-  setInterval(async () => {
-    // Find a pending job
-    const pendingJob = Array.from(db.jobs.values()).find(j => j.status === 'PENDING');
-    
-    if (pendingJob) {
-      console.log(`[Worker] Found pending job: ${pendingJob.id} of type ${pendingJob.type}`);
-      db.updateJobStatus(pendingJob.id, 'RUNNING');
+  console.log(`[Worker] Started. Polling every ${POLL_INTERVAL_MS}ms...`);
 
-      try {
-        if (pendingJob.type === 'DEEP_ANALYSIS') {
-          const result = await featherlessClient.runDeepAnalysis(pendingJob.payload);
-          db.updateJobStatus(pendingJob.id, 'COMPLETED', result);
-          console.log(`[Worker] Job ${pendingJob.id} COMPLETED successfully.`);
-          
-          // Optionally, we could trigger a Discord webhook here to notify users,
-          // or rely on the user checking status via /status in Discord.
-        } else {
-          db.updateJobStatus(pendingJob.id, 'FAILED', undefined, 'Unknown job type');
-        }
-      } catch (error: any) {
-        db.updateJobStatus(pendingJob.id, 'FAILED', undefined, error.message);
-        console.error(`[Worker] Job ${pendingJob.id} FAILED:`, error.message);
+  // Use an isProcessing guard so a slow Featherless response (>5s) doesn't
+  // cause a second setInterval tick to pick up the same job concurrently.
+  let isProcessing = false;
+
+  setInterval(async () => {
+    if (isProcessing) return;
+
+    const pendingJob = Array.from(db.jobs.values()).find(j => j.status === 'PENDING');
+    if (!pendingJob) return;
+
+    isProcessing = true;
+    console.log(`[Worker] Processing job: ${pendingJob.id} (${pendingJob.type})`);
+    db.updateJobStatus(pendingJob.id, 'RUNNING');
+
+    try {
+      if (pendingJob.type === 'DEEP_ANALYSIS') {
+        const result = await featherlessClient.runDeepAnalysis(pendingJob.payload);
+        db.updateJobStatus(pendingJob.id, 'COMPLETED', result);
+        console.log(`[Worker] Job ${pendingJob.id} COMPLETED.`);
+      } else {
+        db.updateJobStatus(pendingJob.id, 'FAILED', undefined, `Unknown job type: ${pendingJob.type}`);
       }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      db.updateJobStatus(pendingJob.id, 'FAILED', undefined, msg);
+      console.error(`[Worker] Job ${pendingJob.id} FAILED:`, msg);
+    } finally {
+      isProcessing = false;
     }
   }, POLL_INTERVAL_MS);
 }

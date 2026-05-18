@@ -37,7 +37,9 @@ class InMemoryStore {
   public conversations: Map<string, Conversation> = new Map();
   public workflows: Map<string, Workflow> = new Map();
   public jobs: Map<string, Job> = new Map();
-  // Stores serialized chat history per conversationId so sessions survive restarts.
+  // In-process chat history cache, keyed by conversationId.
+  // Allows a Chat object to be rebuilt with prior turns if the in-memory session is evicted.
+  // Note: this does NOT survive process restarts — that would require file/DB persistence.
   public chatHistories: Map<string, ChatMessage[]> = new Map();
 
   getChatHistory(conversationId: string): ChatMessage[] {

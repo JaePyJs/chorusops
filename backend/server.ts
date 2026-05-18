@@ -43,12 +43,13 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
       console.log(`[Backend] Created new workflow: ${workflow.id}`);
     }
 
-    // Snapshot job count before Gemini call so we can detect newly-enqueued jobs
-    const jobCountBefore = db.jobs.size;
+    // Snapshot existing job IDs before Gemini call.
+    // Diffing against this set after the call gives us exactly the new jobs — no slice bugs.
+    const jobIdsBefore = new Set(db.jobs.keys());
 
     console.log(`[Backend] Received input for ${conversationId} from ${speakerId || 'unknown'}: ${text}`);
 
-    // Fix #3: Inject conversationId + activeWorkflowId in the format the system prompt expects.
+    // Inject conversationId + activeWorkflowId in the format the system prompt expects.
     // Gemini never needs to guess or hallucinate IDs — they are always explicit in context.
     const inputWithContext = speakerId ? `[Speaker: ${speakerId}] ${text}` : text;
     const contextPrompt =
@@ -56,22 +57,15 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
 
     const agentResponse = await geminiClient.processInput(conversationId, contextPrompt);
 
-    // Detect any jobs that were freshly enqueued during this Gemini turn
-    const newJobs = Array.from(db.jobs.values()).filter(
-      j => j.workflowId === workflow.id && db.jobs.size > jobCountBefore
-    );
-    const enqueuedJobIds = Array.from(db.jobs.values())
-      .filter(j => j.workflowId === workflow!.id && j.status === 'PENDING')
-      .map(j => j.id)
-      .slice(-(db.jobs.size - jobCountBefore) || undefined);
+    // Detect exactly which new jobs were enqueued during this Gemini turn
+    const newJobIds = Array.from(db.jobs.keys()).filter(id => !jobIdsBefore.has(id));
 
     res.json({
       success: true,
       response: agentResponse,
       conversationId: conversation.id,
       workflowId: workflow.id,
-      // Bot uses this to echo "Check status with !status <workflowId>" when jobs were enqueued
-      enqueuedJobIds: enqueuedJobIds.length > 0 ? enqueuedJobIds : undefined,
+      enqueuedJobIds: newJobIds.length > 0 ? newJobIds : undefined,
     });
 
   } catch (error) {

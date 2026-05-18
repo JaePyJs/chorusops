@@ -58,19 +58,30 @@ The user interface.
 - **Text Pipeline:** Handles `!agent say` for text input, `!status <workflow_id>` for async job status checks.
 
 ### E. Speechmatics RT Configuration
-Real-time STT is configured with these explicit settings in `bot/speechmatics.ts`:
+Real-time STT is configured as follows in `bot/speechmatics.ts`, based on the [turn detection](https://docs.speechmatics.com/speech-to-text/realtime/turn-detection) and [auth](https://docs.speechmatics.com/introduction/authentication) docs:
+
+**Auth**: API key as `Authorization: Bearer` header in the WebSocket handshake. This is the documented server-side pattern; JWT temp-keys are only needed for browser (client-side) connections.
+
+**StartRecognition config**:
 ```json
 {
   "audio_format": { "type": "raw", "encoding": "pcm_s16le", "sample_rate": 48000 },
   "transcription_config": {
     "language": "en",
     "operating_point": "enhanced",
+    "enable_partials": false,
     "diarization": "speaker",
-    "max_delay": 5
+    "max_delay": 5,
+    "conversation_config": {
+      "end_of_utterance_silence_trigger": 0.5
+    }
   }
 }
 ```
-This configures Speechmatics with diarization enabled, so the agent receives speaker-attributed `AddTranscript` events (mapping to `S1`, `S2`, etc.) rather than raw undifferentiated text fragments. The `max_delay: 5` setting approximates `SMART_TURN` behavior by batching audio into natural turn-length chunks before emitting transcripts.
+
+**Turn detection**: `end_of_utterance_silence_trigger: 0.5` is the SMART_TURN equivalent. The server fires `EndOfUtterance` after 0.5s of silence, and the preceding `AddTranscript` event is forwarded to the Gemini planner. `enable_partials: false` prevents mid-sentence LLM calls.
+
+**Speaker attribution**: `diarization: 'speaker'` causes each result's `alternatives[0].speaker` to contain a label (`S1`, `S2`, ...). Discord user IDs are mapped to these labels on first detected speech.
 
 ## 4. Data Flow
 
