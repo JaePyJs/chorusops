@@ -150,7 +150,11 @@ export class GeminiClient {
       // Handle function calls (Gemini planner loop)
       let loopCount = 0;
       const MAX_TOOL_LOOPS = 10;
-      while (response.functionCalls && response.functionCalls.length > 0 && loopCount++ < MAX_TOOL_LOOPS) {
+      while (response.functionCalls && response.functionCalls.length > 0) {
+        if (loopCount++ >= MAX_TOOL_LOOPS) {
+          console.warn(`[Gemini] Warning: Exceeded max tool planning loops of ${MAX_TOOL_LOOPS}. Terminating turn.`);
+          return 'Agent exceeded planning steps. Please try again.';
+        }
         const functionResponses: Part[] = [];
 
         for (const call of response.functionCalls) {
@@ -204,11 +208,6 @@ export class GeminiClient {
 
         console.log(`[Gemini] Returning ${functionResponses.length} tool result(s) to model...`);
         response = await chat.sendMessage({ message: functionResponses });
-      }
-
-      if (loopCount >= MAX_TOOL_LOOPS) {
-        console.warn(`[Gemini] Warning: Exceeded max tool planning loops of ${MAX_TOOL_LOOPS}. Terminating turn.`);
-        return 'Agent exceeded planning steps. Please try again.';
       }
 
       const finalText = (response.text != null && response.text !== '') 
