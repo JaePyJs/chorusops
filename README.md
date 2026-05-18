@@ -18,7 +18,7 @@ For AI Week participants, this means that a full day of hallway conversations an
 1. **Backend API (Express/TypeScript):** The central hub managing state (Conversations, Workflows, Jobs) and routing the orchestrator loop.
 2. **Gemini Client:** Uses Google's `@google/genai` SDK to evaluate the context and trigger tools.
 3. **Async Worker:** Polls the job queue and executes domain-specific prompts against **Featherless AI** via their OpenAI-compatible endpoint.
-4. **Discord Bot Client:** Uses `@discordjs/voice` to capture raw PCM audio from users, pipes it into the **Speechmatics RT SDK**, and relays text to the backend.
+4. **Discord Bot Client:** Uses `@discordjs/voice` to capture raw PCM audio from users, pipes it into the **Speechmatics RT WebSocket API**, and relays text to the backend.
 
 *(See `ARCHITECTURE.md` for more details)*
 

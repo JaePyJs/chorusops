@@ -19,18 +19,22 @@ export function startWorker() {
     isProcessing = true;
     console.log(`[Worker] Processing job: ${pendingJob.id} (${pendingJob.type})`);
     db.updateJobStatus(pendingJob.id, 'RUNNING');
+    db.updateWorkflowStatus(pendingJob.workflowId, 'IN_PROGRESS');
 
     try {
       if (pendingJob.type === 'DEEP_ANALYSIS') {
         const result = await featherlessClient.runDeepAnalysis(pendingJob.payload as DeepAnalysisPayload);
         db.updateJobStatus(pendingJob.id, 'COMPLETED', result);
+        db.updateWorkflowStatus(pendingJob.workflowId, 'COMPLETED');
         console.log(`[Worker] Job ${pendingJob.id} COMPLETED.`);
       } else {
         db.updateJobStatus(pendingJob.id, 'FAILED', undefined, `Unknown job type: ${pendingJob.type}`);
+        db.updateWorkflowStatus(pendingJob.workflowId, 'FAILED');
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       db.updateJobStatus(pendingJob.id, 'FAILED', undefined, msg);
+      db.updateWorkflowStatus(pendingJob.workflowId, 'FAILED');
       console.error(`[Worker] Job ${pendingJob.id} FAILED:`, msg);
     } finally {
       isProcessing = false;

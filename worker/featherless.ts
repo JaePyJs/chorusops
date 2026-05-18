@@ -28,10 +28,14 @@ export interface DeepAnalysisPayload {
 
 export class FeatherlessClient {
   async runDeepAnalysis(payload: DeepAnalysisPayload): Promise<DeepAnalysisResult | { error: string; rawContent: string }> {
-    try {
-      console.log(`[Featherless] Starting DEEP_ANALYSIS for:`, payload.dealName ?? 'unknown deal');
+    const attempts = 3;
+    let delay = 1000;
 
-      const prompt = `
+    for (let i = 0; i < attempts; i++) {
+      try {
+        console.log(`[Featherless] Starting DEEP_ANALYSIS (Attempt ${i + 1}/${attempts}) for:`, payload.dealName ?? 'unknown deal');
+
+        const prompt = `
 You are a senior investment analyst. Perform a deep analysis on the following startup pitch or deal context:
 ${JSON.stringify(payload, null, 2)}
 
@@ -45,33 +49,40 @@ Provide your output as structured JSON matching EXACTLY this schema, with no oth
 }
 `;
 
-      const response = await client.chat.completions.create({
-        model: MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
-      });
+        const response = await client.chat.completions.create({
+          model: MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.1,
+        });
 
-      const content = response.choices[0]?.message?.content ?? '{}';
+        const content = response.choices[0]?.message?.content ?? '{}';
 
-      // Extract the first JSON object block from the response.
-      // This handles models that output prose before/after the JSON.
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('[Featherless] No JSON block found in response:', content);
-        return { error: 'No JSON block found', rawContent: content };
+        // Extract the first JSON object block from the response.
+        // This handles models that output prose before/after the JSON.
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          console.error('[Featherless] No JSON block found in response:', content);
+          return { error: 'No JSON block found', rawContent: content };
+        }
+
+        try {
+          return JSON.parse(jsonMatch[0]) as DeepAnalysisResult;
+        } catch {
+          console.error('[Featherless] Failed to parse JSON block:', jsonMatch[0]);
+          return { error: 'Failed to parse JSON', rawContent: content };
+        }
+
+      } catch (error) {
+        console.error(`[Featherless] Attempt ${i + 1} failed:`, error);
+        if (i === attempts - 1) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
       }
-
-      try {
-        return JSON.parse(jsonMatch[0]) as DeepAnalysisResult;
-      } catch {
-        console.error('[Featherless] Failed to parse JSON block:', jsonMatch[0]);
-        return { error: 'Failed to parse JSON', rawContent: content };
-      }
-
-    } catch (error) {
-      console.error('[Featherless] Error during analysis:', error);
-      throw error;
     }
+
+    throw new Error('Analysis failed after maximum retry attempts.');
   }
 }
 

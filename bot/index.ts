@@ -171,14 +171,33 @@ client.on(Events.MessageCreate, async (message: Message) => {
       const { workflow, jobs } = response.data;
       
       const jobSummary = jobs.length > 0
-        ? jobs.map((j: any) => `• ${j.type}: **${j.status}**${j.result ? ' ✅' : ''}`).join('\n')
-        : 'No jobs yet.';
+        ? jobs.map((j: any) => {
+            let detail = `• **${j.type}**: \`${j.status}\``;
+            if (j.status === 'COMPLETED' && j.result) {
+              const res = j.result as any;
+              detail += ` ✅\n  > 🎯 **Score:** \`${res.score}/10\` | **Recommendation:** \`${res.recommendation}\`\n  > 📝 **Summary:** *${res.summary}*\n  > 🟢 **Pros:** ${res.pros?.join(', ') || 'None'}\n  > 🔴 **Cons:** ${res.cons?.join(', ') || 'None'}`;
+            } else if (j.status === 'FAILED' && j.error) {
+              detail += ` ❌\n  > ⚠️ **Error:** *${j.error}*`;
+            }
+            return detail;
+          }).join('\n\n')
+        : 'No background jobs enqueued.';
         
+      const dealName = workflow.state?.dealName || 'Unknown Deal';
+      const stageEmojiMap: Record<string, string> = {
+        'initial': '💬',
+        'collecting': '📝',
+        'analysis_queued': '⏳',
+        'analysis_done': '✨',
+      };
+      const emoji = stageEmojiMap[workflow.state?.stage] || '🔄';
+
       message.reply([
-        `**Workflow ${workflow.id.slice(0, 8)}...**`,
-        `Stage: ${workflow.state?.stage || 'N/A'} | Status: ${workflow.status}`,
-        `Deal: ${workflow.state?.dealName || 'Unknown'}`,
-        `**Jobs:**\n${jobSummary}`,
+        `📊 **Dealflow Analysis: ${dealName}** (ID: \`${workflow.id.slice(0, 8)}\`)`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `● **Stage:** ${emoji} \`${workflow.state?.stage || 'N/A'}\``,
+        `● **Status:** \`${workflow.status}\``,
+        `● **Background Jobs:**\n${jobSummary}`,
       ].join('\n'));
     } catch (error) {
       message.reply('Could not fetch status. Make sure the workflow ID is correct.');

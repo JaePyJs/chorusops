@@ -27,7 +27,7 @@ export interface Job {
   updatedAt: Date;
 }
 
-// A single message turn stored for chat history persistence.
+// A single message turn stored in RAM for temporary chat history caching.
 export interface ChatMessage {
   role: 'user' | 'model';
   parts: Array<{ text: string }>;
@@ -39,7 +39,7 @@ class InMemoryStore {
   public jobs: Map<string, Job> = new Map();
   // In-process chat history cache, keyed by conversationId.
   // Allows a Chat object to be rebuilt with prior turns if the in-memory session is evicted.
-  // Note: this does NOT survive process restarts — that would require file/DB persistence.
+  // This store is entirely transient (in RAM) and does NOT persist across process restarts.
   public chatHistories: Map<string, ChatMessage[]> = new Map();
 
   getChatHistory(conversationId: string): ChatMessage[] {
@@ -76,6 +76,14 @@ class InMemoryStore {
     const wf = this.workflows.get(id);
     if (!wf) return undefined;
     wf.state = { ...wf.state, ...stateDelta };
+    wf.updatedAt = new Date();
+    return wf;
+  }
+
+  updateWorkflowStatus(id: string, status: Workflow['status']): Workflow | undefined {
+    const wf = this.workflows.get(id);
+    if (!wf) return undefined;
+    wf.status = status;
     wf.updatedAt = new Date();
     return wf;
   }

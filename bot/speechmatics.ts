@@ -5,6 +5,22 @@ import WebSocket from 'ws';
 // JWT/temp keys are for CLIENT-SIDE (browser) connections where the API key can't be exposed.
 // For this Node.js bot, the API key as Bearer is the correct and documented approach.
 
+interface SpeechmaticsMessage {
+  message: string;
+  id?: string;
+  metadata?: {
+    transcript: string;
+  };
+  results?: Array<{
+    alternatives?: Array<{
+      speaker?: string;
+    }>;
+  }>;
+  time?: number;
+  type?: string;
+  reason?: string;
+}
+
 export class SpeechmaticsClient {
   private ws: WebSocket | null = null;
   private apiKey: string;
@@ -63,9 +79,9 @@ export class SpeechmaticsClient {
     });
 
     this.ws.on('message', (data: WebSocket.Data) => {
-      let msg: any;
+      let msg: SpeechmaticsMessage;
       try {
-        msg = JSON.parse(data.toString());
+        msg = JSON.parse(data.toString()) as SpeechmaticsMessage;
       } catch {
         return; // Binary frame (audio ack), ignore
       }

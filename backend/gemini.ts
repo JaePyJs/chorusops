@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import type { Chat, GenerateContentResponse } from '@google/genai';
+import type { Chat, GenerateContentResponse, Part } from '@google/genai';
 import dotenv from 'dotenv';
 import { db } from './db';
 import { v4 as uuidv4 } from 'uuid';
@@ -150,7 +150,7 @@ export class GeminiClient {
       // Fix #5: Use proper SDK types — GenerateContentResponse is returned by sendMessage
       // Handle function calls (Gemini planner loop)
       while (response.functionCalls && response.functionCalls.length > 0) {
-        const functionResponses: Array<{ name: string; response: Record<string, unknown> }> = [];
+        const functionResponses: Part[] = [];
 
         for (const call of response.functionCalls) {
           console.log(`[Gemini] Tool call: ${call.name}`, call.args);
@@ -192,11 +192,17 @@ export class GeminiClient {
             result = { success: false, error: msg };
           }
 
-          functionResponses.push({ name: call.name ?? 'unknown', response: result });
+          functionResponses.push({
+            functionResponse: {
+              name: call.name ?? 'unknown',
+              id: call.id,
+              response: result,
+            },
+          });
         }
 
         console.log(`[Gemini] Returning ${functionResponses.length} tool result(s) to model...`);
-        response = await chat.sendMessage(functionResponses as any);
+        response = await chat.sendMessage({ message: functionResponses });
       }
 
       const finalText = (response.text != null && response.text !== '') 
