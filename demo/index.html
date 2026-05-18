@@ -378,8 +378,8 @@
   <div id="chat">
     <div class="msg system">
       <strong>Interactive System Walkthrough</strong><br/>
-      Describe a deal or startup to get started. E.g., *"Let's look at Acme Robotics. They build heavy-lift drones."*<br/>
-      Then, direct the Gemini planner to evaluate: *"Run a deep analysis on Acme Robotics."*
+      Describe a deal or startup to get started. E.g., <em>"Let's look at Acme Robotics. They build heavy-lift drones."</em><br/>
+      Then, direct the Gemini planner to evaluate: <em>"Run a deep analysis on Acme Robotics."</em>
     </div>
   </div>
 
@@ -402,12 +402,31 @@
     </div>
   </div>
 </div>
-
 <script>
-  const BACKEND = 'http://localhost:3000';
+  const params = new URLSearchParams(window.location.search);
+  const BACKEND = params.get('backend') || 'http://localhost:3000';
   let conversationId = 'demo-' + Math.random().toString(36).slice(2, 9);
   let activeWorkflowId = null;
   let statusPollInterval = null;
+
+  // Real-time connection health checker
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${BACKEND}/health`);
+      if (res.ok) {
+        document.querySelector('.status-dot').style.background = 'var(--accent-teal)';
+        document.querySelector('.status-dot').style.boxShadow = '0 0 8px var(--accent-teal)';
+        document.querySelector('.status-dot-container span').textContent = 'Orchestrator Online';
+      } else {
+        throw new Error('Not OK');
+      }
+    } catch (err) {
+      document.querySelector('.status-dot').style.background = '#ef4444';
+      document.querySelector('.status-dot').style.boxShadow = '0 0 8px #ef4444';
+      document.querySelector('.status-dot-container span').textContent = 'Backend Offline';
+    }
+  }
+  checkHealth();
 
   document.getElementById('session-key').textContent = conversationId;
 
@@ -462,7 +481,7 @@
       // Capture workflow ID for status polling
       if (data.workflowId) {
         activeWorkflowId = data.workflowId;
-        workflowLabel.textContent = `WORKFLOW ID: ${activeWorkflowId}`;
+        workflowLabel.textContent = `WORKFLOW ID: ${activeWorkflowId.slice(0, 8)}...`;
       }
 
       // If a job was enqueued, start polling status
@@ -486,6 +505,9 @@
     statusBadge.textContent = 'POLLING';
     statusBadge.style.borderColor = 'rgba(59, 130, 246, 0.4)';
     statusBadge.style.color = '#3b82f6';
+    
+    // Clear stale status content to avoid flash of old data
+    statusContent.textContent = 'Loading enqueued tasks...';
     
     pollStatus();
     statusPollInterval = setInterval(async () => {
