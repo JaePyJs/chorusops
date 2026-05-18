@@ -72,9 +72,7 @@ Real-time STT is configured as follows in `bot/speechmatics.ts`, based on the [t
     "enable_partials": false,
     "diarization": "speaker",
     "max_delay": 5,
-    "conversation_config": {
-      "end_of_utterance_silence_trigger": 0.5
-    }
+    "end_of_utterance_silence_trigger": 0.5
   }
 }
 ```

@@ -460,6 +460,7 @@
     if (!text) return;
     input.value = '';
     sendBtn.disabled = true;
+    sendBtn.textContent = '...';
 
     addMessage(text, 'user');
     const thinking = addMessage('Thinking...', 'agent');
@@ -497,6 +498,7 @@
     }
 
     sendBtn.disabled = false;
+    sendBtn.textContent = 'Send';
     input.focus();
   }
 
