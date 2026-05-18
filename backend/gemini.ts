@@ -118,7 +118,6 @@ Keep replies concise and natural — your response may be read aloud in a voice 
 export class GeminiClient {
   // In-process Chat object cache. If a session is not found here, it is rebuilt
   // from the in-memory db history so we don't lose prior context within the same process run.
-  // Full restart persistence would require persisting chatHistories to disk.
   private chatSessions: Map<string, Chat> = new Map();
 
   async processInput(conversationId: string, userInput: string, cleanInput?: string): Promise<string> {

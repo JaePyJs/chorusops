@@ -101,8 +101,7 @@ export class SpeechmaticsClient {
 
           // Speaker label from diarization (S1, S2, ...)
           // Falls back to 'S1' if diarization data is absent.
-          const results: any[] = msg.results ?? [];
-          const speaker: string = results[0]?.alternatives?.[0]?.speaker ?? 'S1';
+          const speaker: string = msg.results?.[0]?.alternatives?.[0]?.speaker ?? 'S1';
 
           console.log(`[Speechmatics] Segment [${speaker}]: ${transcript.trim()}`);
           this.transcriptBuffer.push(transcript.trim());

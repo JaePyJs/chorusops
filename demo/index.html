@@ -427,6 +427,7 @@
     }
   }
   checkHealth();
+  setInterval(checkHealth, 30000); // recheck every 30s
 
   document.getElementById('session-key').textContent = conversationId;
 
