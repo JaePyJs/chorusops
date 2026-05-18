@@ -61,15 +61,13 @@ Provide your output as structured JSON matching EXACTLY this schema, with no oth
         // This handles models that output prose before/after the JSON.
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-          console.error('[Featherless] No JSON block found in response:', content);
-          return { error: 'No JSON block found', rawContent: content };
+          throw new Error(`Invalid response format: No JSON block found in content: ${content}`);
         }
 
         try {
           return JSON.parse(jsonMatch[0]) as DeepAnalysisResult;
         } catch {
-          console.error('[Featherless] Failed to parse JSON block:', jsonMatch[0]);
-          return { error: 'Failed to parse JSON', rawContent: content };
+          throw new Error(`Invalid JSON format: Failed to parse JSON block: ${jsonMatch[0]}`);
         }
 
       } catch (error) {

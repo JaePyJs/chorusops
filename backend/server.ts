@@ -55,7 +55,7 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
     const contextPrompt =
       `[System: conversationId=${conversationId}, activeWorkflowId=${workflow.id}]\n${inputWithContext}`;
 
-    const agentResponse = await geminiClient.processInput(conversationId, contextPrompt);
+    const agentResponse = await geminiClient.processInput(conversationId, contextPrompt, inputWithContext);
 
     // Detect exactly which new jobs were enqueued during this Gemini turn
     const newJobIds = Array.from(db.jobs.keys()).filter(id => !jobIdsBefore.has(id));

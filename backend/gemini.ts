@@ -121,7 +121,7 @@ export class GeminiClient {
   // Full restart persistence would require persisting chatHistories to disk.
   private chatSessions: Map<string, Chat> = new Map();
 
-  async processInput(conversationId: string, userInput: string): Promise<string> {
+  async processInput(conversationId: string, userInput: string, cleanInput?: string): Promise<string> {
     try {
       let chat = this.chatSessions.get(conversationId);
 
@@ -141,8 +141,8 @@ export class GeminiClient {
         this.chatSessions.set(conversationId, chat);
       }
 
-      // Persist the user turn to db before sending
-      db.appendChatMessage(conversationId, { role: 'user', parts: [{ text: userInput }] });
+      // Persist the user turn to db before sending (excluding token-wasting system context prefix)
+      db.appendChatMessage(conversationId, { role: 'user', parts: [{ text: cleanInput || userInput }] });
 
       // Send the message to Gemini — SDK expects a Content-like object or string
       let response = await chat.sendMessage({ message: userInput });

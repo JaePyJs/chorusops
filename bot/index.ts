@@ -1,5 +1,5 @@
-import { Client, GatewayIntentBits, Events, Message } from 'discord.js';
-import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus } from '@discordjs/voice';
+import { Client, GatewayIntentBits, Events, Message, TextChannel } from 'discord.js';
+import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, VoiceConnection } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { SpeechmaticsClient } from './speechmatics';
@@ -16,65 +16,96 @@ const client = new Client({
   ],
 });
 
-const BACKEND_URL = 'http://localhost:3000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
-let speechmatics: SpeechmaticsClient | null = null;
-let activeConversationId: string | null = null;
-// Fix #6: Store a reference to the text channel so voice transcripts can be posted back there.
-let activeTextChannel: import('discord.js').TextChannel | null = null;
+interface Sendable {
+  send: (content: string) => Promise<any>;
+}
+
+interface GuildSession {
+  connection: VoiceConnection;
+  speechmatics: SpeechmaticsClient;
+  activeConversationId: string;
+  activeTextChannel: Sendable;
+  activeUserStreams: Set<string>;
+}
+
+// Map of Guild ID → Active Session to support multi-guild isolation perfectly
+const guildSessions = new Map<string, GuildSession>();
 
 // Maps Discord userId → Speechmatics speaker label (S1, S2, etc.) for per-speaker attribution in state.
 const userSpeakerMap: Map<string, string> = new Map();
 let speakerCounter = 1;
 
+// Helper to safely split and send messages that exceed Discord's 2000-character limit (BUG B & BUG C)
+async function sendLongMessage(target: Message | Sendable, text: string, useReply = false) {
+  const maxLength = 1900;
+  if (text.length <= maxLength) {
+    if (target instanceof Message) {
+      if (useReply) {
+        await target.reply(text);
+      } else {
+        await (target.channel as Sendable).send(text);
+      }
+    } else {
+      await target.send(text);
+    }
+    return;
+  }
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+  const lines = text.split('\n');
+
+  for (const line of lines) {
+    if (currentChunk.length + line.length + 1 > maxLength) {
+      chunks.push(currentChunk);
+      currentChunk = '';
+    }
+    currentChunk += (currentChunk ? '\n' : '') + line;
+  }
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (i === 0 && target instanceof Message && useReply) {
+      await target.reply(chunks[i]);
+    } else {
+      if (target instanceof Message) {
+        await (target.channel as Sendable).send(chunks[i]);
+      } else {
+        await target.send(chunks[i]);
+      }
+    }
+  }
+}
+
 client.once(Events.ClientReady, c => {
   console.log(`[Discord Bot] Ready! Logged in as ${c.user.tag}`);
 });
 
-// Setup Speechmatics and handle text relay to backend
-function initSpeechmatics() {
-  if (!process.env.SPEECHMATICS_API_KEY) {
-    console.warn('[Discord Bot] SPEECHMATICS_API_KEY not set. Voice transcription will be disabled.');
-    return;
-  }
-
-  speechmatics = new SpeechmaticsClient(process.env.SPEECHMATICS_API_KEY, async (transcript, speaker) => {
-    if (!activeConversationId) return;
-
-    try {
-      const response = await axios.post(`${BACKEND_URL}/agent/invoke`, {
-        conversationId: activeConversationId,
-        text: transcript,
-        speakerId: speaker,
-        type: 'voice'
-      });
-
-      const agentText: string = response.data.response;
-      const workflowId: string = response.data.workflowId;
-      const enqueuedJobIds: string[] | undefined = response.data.enqueuedJobIds;
-
-      // Build the reply text, always tagging the workflowId for status checking
-      let replyText = `**[${speaker}]** ${transcript}\n> 🤖 ${agentText}`;
-      if (enqueuedJobIds && enqueuedJobIds.length > 0) {
-        replyText += `\n> 📋 Job queued! Check status with: \`!status ${workflowId}\``;
-      }
-
-      // Post to the text channel — this is how voice responses reach Discord users
-      if (activeTextChannel) {
-        await activeTextChannel.send(replyText);
-      }
-      console.log(`[Discord Bot] Posted agent response to channel.`);
-    } catch (error) {
-      console.error('[Discord Bot] Error invoking agent:', error);
-    }
-  });
-
-  speechmatics.connect();
-}
-
 client.on(Events.MessageCreate, async (message: Message) => {
   if (message.author.bot) return;
 
+  const guildId = message.guildId;
+  if (!guildId) return; // Only process guild commands
+
+  // Help command (BUG K)
+  if (message.content.trim() === '!help') {
+    await sendLongMessage(message, [
+      `🤖 **Dealflow Orchestrator Bot — Command Guide**`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `• \`!help\` — Displays this guide.`,
+      `• \`!agent join\` — Invites the bot to your current voice channel to start listening.`,
+      `• \`!agent say <text>\` — Interacts with the central Gemini orchestrator via text.`,
+      `• \`!status <workflow_id>\` — Fetches a beautiful real-time dashboard of enqueued background analysis jobs.`,
+      `• \`!agent leave\` — Orders the bot to disconnect from the voice channel and reset context.`,
+    ].join('\n'), true);
+    return;
+  }
+
+  // Join Voice Channel command
   if (message.content.startsWith('!agent join')) {
     const channel = message.member?.voice.channel;
     if (!channel) {
@@ -82,10 +113,49 @@ client.on(Events.MessageCreate, async (message: Message) => {
       return;
     }
 
-    activeConversationId = message.channel.id;
-    // Fix #6: Store the text channel so voice transcript responses can be posted here
-    activeTextChannel = message.channel as import('discord.js').TextChannel;
-    if (!speechmatics) initSpeechmatics();
+    if (!process.env.SPEECHMATICS_API_KEY) {
+      message.reply('SPEECHMATICS_API_KEY not set. Voice transcription is disabled.');
+      return;
+    }
+
+    // Clean up existing session in this guild if any
+    const existingSession = guildSessions.get(guildId);
+    if (existingSession) {
+      existingSession.connection.destroy();
+      existingSession.speechmatics.close();
+      guildSessions.delete(guildId);
+    }
+
+    // Initialize a dedicated Speechmatics client for this specific guild session (BUG D & BUG E)
+    const sessionSpeechmatics = new SpeechmaticsClient(process.env.SPEECHMATICS_API_KEY, async (transcript, speaker) => {
+      const session = guildSessions.get(guildId);
+      if (!session) return;
+
+      try {
+        const response = await axios.post(`${BACKEND_URL}/agent/invoke`, {
+          conversationId: session.activeConversationId,
+          text: transcript,
+          speakerId: speaker,
+          type: 'voice'
+        });
+
+        const agentText: string = response.data.response;
+        const workflowId: string = response.data.workflowId;
+        const enqueuedJobIds: string[] | undefined = response.data.enqueuedJobIds;
+
+        let replyText = `**[${speaker}]** ${transcript}\n> 🤖 ${agentText}`;
+        if (enqueuedJobIds && enqueuedJobIds.length > 0) {
+          replyText += `\n> 📋 Job queued! Check status with: \`!status ${workflowId}\``;
+        }
+
+        await sendLongMessage(session.activeTextChannel, replyText);
+        console.log(`[Discord Bot] Posted agent response to channel.`);
+      } catch (error) {
+        console.error('[Discord Bot] Error invoking agent:', error);
+      }
+    });
+
+    sessionSpeechmatics.connect();
 
     const connection = joinVoiceChannel({
       channelId: channel.id,
@@ -94,40 +164,79 @@ client.on(Events.MessageCreate, async (message: Message) => {
       selfDeaf: false,
     });
 
+    const activeUserStreams = new Set<string>();
+
+    guildSessions.set(guildId, {
+      connection,
+      speechmatics: sessionSpeechmatics,
+      activeConversationId: message.channel.id,
+      activeTextChannel: message.channel as TextChannel,
+      activeUserStreams,
+    });
+
     connection.on(VoiceConnectionStatus.Ready, () => {
       console.log(`[Discord Bot] Joined voice channel ${channel.name}`);
-      message.reply('Joined voice channel and listening...');
+      message.reply(`Joined voice channel **${channel.name}** and listening...`);
 
       const receiver = connection.receiver;
 
       receiver.speaking.on('start', (userId) => {
-        // Assign a stable speaker label to this Discord user for Speechmatics diarization attribution.
+        const session = guildSessions.get(guildId);
+        if (!session) return;
+
+        // Guard against duplicate overlapping audio stream subscriptions (BUG A)
+        if (session.activeUserStreams.has(userId)) {
+          return;
+        }
+        session.activeUserStreams.add(userId);
+
         if (!userSpeakerMap.has(userId)) {
           userSpeakerMap.set(userId, `S${speakerCounter++}`);
           console.log(`[Discord Bot] Mapped user ${userId} → ${userSpeakerMap.get(userId)}`);
         }
 
-        // Subscribe to the user's audio stream (Opus encoded from Discord)
         const opusStream = receiver.subscribe(userId, {
           end: { behavior: EndBehaviorType.AfterSilence, duration: 500 },
         });
 
-        // Decode Opus → PCM s16le at 48kHz, 1 channel using prism-media.
-        // Speechmatics RT expects: raw PCM, 48000 Hz, mono, s16le.
         const { opus } = require('prism-media');
         const pcmStream = opusStream.pipe(new opus.Decoder({ rate: 48000, channels: 1, frameSize: 960 }));
 
         pcmStream.on('data', (chunk: Buffer) => {
-          speechmatics?.sendAudio(chunk);
+          session.speechmatics.sendAudio(chunk);
         });
 
         pcmStream.on('error', (err: Error) => {
           console.error(`[Discord Bot] PCM decode error for user ${userId}:`, err.message);
         });
 
+        const cleanup = () => {
+          session.activeUserStreams.delete(userId);
+          console.log(`[Discord Bot] Finished streaming audio for user ${userId}.`);
+        };
+        opusStream.on('end', cleanup);
+        opusStream.on('close', cleanup);
+
         console.log(`[Discord Bot] User ${userId} (${userSpeakerMap.get(userId)}) started speaking.`);
       });
     });
+    return;
+  }
+
+  // Leave Voice Channel command (BUG J)
+  if (message.content.startsWith('!agent leave')) {
+    const session = guildSessions.get(guildId);
+    if (!session) {
+      message.reply('I am not in a voice channel in this server.');
+      return;
+    }
+
+    session.connection.destroy();
+    session.speechmatics.close();
+    guildSessions.delete(guildId);
+
+    message.reply('Left voice channel and cleared active listening session.');
+    return;
   }
 
   // Handle text interaction with agent
@@ -146,15 +255,16 @@ client.on(Events.MessageCreate, async (message: Message) => {
       const enqueuedJobIds: string[] | undefined = response.data.enqueuedJobIds;
       
       let reply = response.data.response as string;
-      // Fix #6: When a job is enqueued, echo the workflowId explicitly so !status is usable
       if (enqueuedJobIds && enqueuedJobIds.length > 0) {
         reply += `\n\n📋 Job queued! Track it with: \`!status ${workflowId}\``;
       }
-      message.reply(reply);
+      
+      await sendLongMessage(message, reply, true);
     } catch (error) {
       console.error(error);
       message.reply('Error talking to the agent backend.');
     }
+    return;
   }
 
   // Handle status checks - fetches real workflow/job data from backend
@@ -186,19 +296,22 @@ client.on(Events.MessageCreate, async (message: Message) => {
       const dealName = workflow.state?.dealName || 'Unknown Deal';
       const stageEmojiMap: Record<string, string> = {
         'initial': '💬',
-        'collecting': '📝',
+        'gathering': '📝', // Correctly matches 'gathering' from gemini prompt (BUG H)
         'analysis_queued': '⏳',
         'analysis_done': '✨',
+        'decision': '🏁',
       };
       const emoji = stageEmojiMap[workflow.state?.stage] || '🔄';
 
-      message.reply([
+      const statusResponse = [
         `📊 **Dealflow Analysis: ${dealName}** (ID: \`${workflow.id.slice(0, 8)}\`)`,
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
         `● **Stage:** ${emoji} \`${workflow.state?.stage || 'N/A'}\``,
         `● **Status:** \`${workflow.status}\``,
         `● **Background Jobs:**\n${jobSummary}`,
-      ].join('\n'));
+      ].join('\n');
+
+      await sendLongMessage(message, statusResponse, true);
     } catch (error) {
       message.reply('Could not fetch status. Make sure the workflow ID is correct.');
     }
