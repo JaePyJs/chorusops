@@ -10,8 +10,6 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODEL_NAME = 'gemini-2.5-flash';
 
 // --- Define Tools ---
-// Fix #2: stateDelta is now a structured Type.OBJECT, not a JSON string.
-// This prevents Gemini from outputting malformed JSON and eliminates the JSON.parse failure point.
 
 const updateStateTool = {
   name: 'update_state',
@@ -146,7 +144,6 @@ export class GeminiClient {
       // Send the message to Gemini — SDK expects a Content-like object or string
       let response = await chat.sendMessage({ message: userInput });
 
-      // Fix #5: Use proper SDK types — GenerateContentResponse is returned by sendMessage
       // Handle function calls (Gemini planner loop)
       let loopCount = 0;
       const MAX_TOOL_LOOPS = 10;
