@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events, Message, TextChannel } from 'discord.js';
+import { Client, GatewayIntentBits, Events, Message } from 'discord.js';
 import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, VoiceConnection } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import axios from 'axios';
@@ -18,7 +18,7 @@ const client = new Client({
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
-interface Sendable {
+interface SendableChannel {
   send: (content: string) => Promise<any>;
 }
 
@@ -26,26 +26,24 @@ interface GuildSession {
   connection: VoiceConnection;
   speechmatics: SpeechmaticsClient;
   activeConversationId: string;
-  activeTextChannel: Sendable;
+  activeTextChannel: SendableChannel;
   activeUserStreams: Set<string>;
+  userSpeakerMap: Map<string, string>;
+  speakerCounter: number;
 }
 
 // Map of Guild ID → Active Session to support multi-guild isolation perfectly
 const guildSessions = new Map<string, GuildSession>();
 
-// Maps Discord userId → Speechmatics speaker label (S1, S2, etc.) for per-speaker attribution in state.
-const userSpeakerMap: Map<string, string> = new Map();
-let speakerCounter = 1;
-
 // Helper to safely split and send messages that exceed Discord's 2000-character limit (BUG B & BUG C)
-async function sendLongMessage(target: Message | Sendable, text: string, useReply = false) {
+async function sendLongMessage(target: Message | SendableChannel, text: string, useReply = false) {
   const maxLength = 1900;
   if (text.length <= maxLength) {
     if (target instanceof Message) {
       if (useReply) {
         await target.reply(text);
       } else {
-        await (target.channel as Sendable).send(text);
+        await (target.channel as SendableChannel).send(text);
       }
     } else {
       await target.send(text);
@@ -58,6 +56,18 @@ async function sendLongMessage(target: Message | Sendable, text: string, useRepl
   const lines = text.split('\n');
 
   for (const line of lines) {
+    // Edge case split: If a single line/paragraph itself exceeds maxLength, slice it explicitly
+    if (line.length > maxLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = '';
+      }
+      for (let j = 0; j < line.length; j += maxLength) {
+        chunks.push(line.slice(j, j + maxLength));
+      }
+      continue;
+    }
+
     if (currentChunk.length + line.length + 1 > maxLength) {
       chunks.push(currentChunk);
       currentChunk = '';
@@ -73,7 +83,7 @@ async function sendLongMessage(target: Message | Sendable, text: string, useRepl
       await target.reply(chunks[i]);
     } else {
       if (target instanceof Message) {
-        await (target.channel as Sendable).send(chunks[i]);
+        await (target.channel as SendableChannel).send(chunks[i]);
       } else {
         await target.send(chunks[i]);
       }
@@ -121,8 +131,8 @@ client.on(Events.MessageCreate, async (message: Message) => {
     // Clean up existing session in this guild if any
     const existingSession = guildSessions.get(guildId);
     if (existingSession) {
-      existingSession.connection.destroy();
       existingSession.speechmatics.close();
+      existingSession.connection.destroy();
       guildSessions.delete(guildId);
     }
 
@@ -165,13 +175,16 @@ client.on(Events.MessageCreate, async (message: Message) => {
     });
 
     const activeUserStreams = new Set<string>();
+    const userSpeakerMap = new Map<string, string>();
 
     guildSessions.set(guildId, {
       connection,
       speechmatics: sessionSpeechmatics,
       activeConversationId: message.channel.id,
-      activeTextChannel: message.channel as TextChannel,
+      activeTextChannel: message.channel as SendableChannel,
       activeUserStreams,
+      userSpeakerMap,
+      speakerCounter: 1,
     });
 
     connection.on(VoiceConnectionStatus.Ready, () => {
@@ -190,9 +203,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
         }
         session.activeUserStreams.add(userId);
 
-        if (!userSpeakerMap.has(userId)) {
-          userSpeakerMap.set(userId, `S${speakerCounter++}`);
-          console.log(`[Discord Bot] Mapped user ${userId} → ${userSpeakerMap.get(userId)}`);
+        if (!session.userSpeakerMap.has(userId)) {
+          session.userSpeakerMap.set(userId, `S${session.speakerCounter++}`);
+          console.log(`[Discord Bot] Mapped user ${userId} → ${session.userSpeakerMap.get(userId)}`);
         }
 
         const opusStream = receiver.subscribe(userId, {
@@ -217,7 +230,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
         opusStream.on('end', cleanup);
         opusStream.on('close', cleanup);
 
-        console.log(`[Discord Bot] User ${userId} (${userSpeakerMap.get(userId)}) started speaking.`);
+        console.log(`[Discord Bot] User ${userId} (${session.userSpeakerMap.get(userId)}) started speaking.`);
       });
     });
     return;
@@ -231,8 +244,12 @@ client.on(Events.MessageCreate, async (message: Message) => {
       return;
     }
 
-    session.connection.destroy();
+    // Proactively close the websocket connection first to send EndOfStream and flush in-flight packets,
+    // wait 200ms to avoid cutting off buffered data, and then destroy the voice channel connection.
     session.speechmatics.close();
+    setTimeout(() => {
+      session.connection.destroy();
+    }, 200);
     guildSessions.delete(guildId);
 
     message.reply('Left voice channel and cleared active listening session.');
@@ -272,7 +289,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
     const workflowId = message.content.replace('!status', '').trim();
     
     if (!workflowId) {
-      message.reply('Usage: `!status <workflow_id>` — You can find your workflow ID in the agent\'s responses.');
+      message.reply('Usage: \`!status <workflow_id>\` — You can find your workflow ID in the agent\'s responses.');
       return;
     }
     
@@ -296,7 +313,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
       const dealName = workflow.state?.dealName || 'Unknown Deal';
       const stageEmojiMap: Record<string, string> = {
         'initial': '💬',
-        'gathering': '📝', // Correctly matches 'gathering' from gemini prompt (BUG H)
+        'gathering': '📝',
         'analysis_queued': '⏳',
         'analysis_done': '✨',
         'decision': '🏁',
