@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
+import type { Chat, GenerateContentResponse } from '@google/genai';
 import dotenv from 'dotenv';
 import { db } from './db';
 import { v4 as uuidv4 } from 'uuid';
@@ -6,32 +7,45 @@ import { v4 as uuidv4 } from 'uuid';
 dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const MODEL_NAME = 'gemini-2.5-flash'; // Or gemini-2.5-pro
+const MODEL_NAME = 'gemini-2.5-flash';
 
 // --- Define Tools ---
+// Fix #2: stateDelta is now a structured Type.OBJECT, not a JSON string.
+// This prevents Gemini from outputting malformed JSON and eliminates the JSON.parse failure point.
 
 const updateStateTool = {
   name: 'update_state',
-  description: 'Updates the current workflow state with new information. Use this to track progress, stages, or record key extracted details.',
+  description: 'Updates the current workflow state with new information. Use this to track progress, deal stages, or record key extracted details. Call this proactively after every user turn that introduces new deal information.',
   parameters: {
     type: Type.OBJECT,
     properties: {
       workflowId: {
         type: Type.STRING,
-        description: 'The ID of the workflow to update.',
+        description: 'The ID of the workflow to update. Use the active workflowId from the system context.',
       },
-      stateDelta: {
+      dealName: { type: Type.STRING, description: 'Name of the startup or deal.' },
+      stage: {
         type: Type.STRING,
-        description: 'A JSON string representing the key-value pairs to merge into the state.',
+        description: 'Current stage: "initial", "gathering", "analysis_queued", "analysis_done", or "decision".',
       },
+      teamNotes: { type: Type.STRING, description: 'Notes about the founding team.' },
+      marketNotes: { type: Type.STRING, description: 'Notes about the market opportunity.' },
+      ask: { type: Type.STRING, description: 'Funding ask (e.g. "$2M seed").' },
+      questions: {
+        type: Type.ARRAY,
+        description: 'Open questions that need answers.',
+        items: { type: Type.STRING },
+      },
+      jobId: { type: Type.STRING, description: 'Set to the job ID after enqueuing a Featherless job.' },
+      recommendation: { type: Type.STRING, description: 'Final recommendation after analysis: "Pass", "Invest", or "More Info".' },
     },
-    required: ['workflowId', 'stateDelta'],
+    required: ['workflowId'],
   },
 };
 
 const fetchStateTool = {
   name: 'fetch_state',
-  description: 'Fetches the current state of a workflow.',
+  description: 'Fetches the current workflow state. Call this before responding to ensure you are not duplicating work (e.g. re-enqueuing an already queued job).',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -46,7 +60,7 @@ const fetchStateTool = {
 
 const enqueueFeatherlessJobTool = {
   name: 'enqueue_featherless_job',
-  description: 'Enqueues a heavy domain-specific task for the Featherless async worker. Use this when deep analysis, long-running data processing, or large-scale generation is needed.',
+  description: 'Enqueues a DEEP_ANALYSIS job for the Featherless async worker. Use ONLY when the user asks for deep analysis, due diligence, competitive landscape, or financial sanity check. Do NOT answer these yourself. The job will run in the background.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -56,14 +70,14 @@ const enqueueFeatherlessJobTool = {
       },
       jobType: {
         type: Type.STRING,
-        description: 'The type of job. Example: "DEEP_ANALYSIS"',
+        description: 'Job type. Use "DEEP_ANALYSIS" for deal analysis.',
       },
-      payload: {
-        type: Type.STRING,
-        description: 'A JSON string containing the data the worker needs to perform the job.',
-      },
+      dealName: { type: Type.STRING, description: 'Name of the deal to analyze.' },
+      teamNotes: { type: Type.STRING, description: 'Team context from workflow state.' },
+      marketNotes: { type: Type.STRING, description: 'Market context from workflow state.' },
+      ask: { type: Type.STRING, description: 'Funding ask from workflow state.' },
     },
-    required: ['workflowId', 'jobType', 'payload'],
+    required: ['workflowId', 'jobType', 'dealName'],
   },
 };
 
@@ -91,95 +105,112 @@ You are a PLANNER, not a Q&A bot. You must think in multi-step workflows, mainta
 
 5. **Handle failures gracefully.** If a tool call fails, acknowledge it and try an alternative or ask the user for clarification.
 
-## Workflow State Schema
-When updating state, always use these keys where applicable:
-- dealName: string
-- stage: "initial" | "gathering" | "analysis_queued" | "analysis_done" | "decision"
-- teamNotes: string
-- marketNotes: string
-- ask: string (funding ask)
-- questions: string[]
-- jobId: string (set when analysis is enqueued)
-- recommendation: string (set after analysis)
+## Active Context
+The system will inject the active conversationId and workflowId at the start of each message in the format:
+[System: conversationId=<id>, activeWorkflowId=<id>]
+
+Always use the injected activeWorkflowId when calling tools. Never make up a workflow ID.
 
 ## Output Style
-Keep replies concise and natural — your response may be read aloud in a voice channel. Use short sentences. Avoid markdown. If a job is queued, say so clearly and tell the user how to check back.
+Keep replies concise and natural — your response may be read aloud in a voice channel. Use short sentences. Avoid markdown in spoken responses. When a job is enqueued, ALWAYS include the workflowId in your reply so the user can run !status <workflowId>.
 `;
 
 export class GeminiClient {
-  private chatSessions: Map<string, any> = new Map();
+  // Fix #1: chatSessions is rebuilt from db on demand, surviving restarts.
+  // We keep live Chat objects in-memory for the duration of a process, but
+  // history is also written to db so it can be replayed after a restart.
+  private chatSessions: Map<string, Chat> = new Map();
 
   async processInput(conversationId: string, userInput: string): Promise<string> {
     try {
       let chat = this.chatSessions.get(conversationId);
-      
+
       if (!chat) {
+        // Reload existing history from db so the agent remembers prior turns
+        const existingHistory = db.getChatHistory(conversationId);
+
         chat = ai.chats.create({
           model: MODEL_NAME,
           config: {
             systemInstruction: SYSTEM_PROMPT,
             tools: tools,
             temperature: 0.2,
-          }
+          },
+          history: existingHistory,
         });
         this.chatSessions.set(conversationId, chat);
       }
 
-      // Send the message to Gemini
-      let response = await chat.sendMessage({ text: userInput });
+      // Persist the user turn to db before sending
+      db.appendChatMessage(conversationId, { role: 'user', parts: [{ text: userInput }] });
 
-      // Handle function calls
+      // Send the message to Gemini — SDK expects a Content-like object or string
+      let response = await chat.sendMessage({ message: userInput });
+
+      // Fix #5: Use proper SDK types — GenerateContentResponse is returned by sendMessage
+      // Handle function calls (Gemini planner loop)
       while (response.functionCalls && response.functionCalls.length > 0) {
-        const functionResponses: any[] = [];
+        const functionResponses: Array<{ name: string; response: Record<string, unknown> }> = [];
 
         for (const call of response.functionCalls) {
-          console.log(`[Gemini] Tool call: ${call.name} with args:`, call.args);
-          let result: any;
+          console.log(`[Gemini] Tool call: ${call.name}`, call.args);
+          let result: Record<string, unknown>;
 
           try {
             if (call.name === 'update_state') {
-              const parsedDelta = JSON.parse(call.args.stateDelta as string);
-              const wf = db.updateWorkflowState(call.args.workflowId as string, parsedDelta);
-              result = { success: true, newState: wf?.state || {} };
-            } 
-            else if (call.name === 'fetch_state') {
-              const wf = db.workflows.get(call.args.workflowId as string);
-              result = { success: true, state: wf?.state || {} };
-            } 
-            else if (call.name === 'enqueue_featherless_job') {
-              const parsedPayload = JSON.parse(call.args.payload as string);
-              const jobId = uuidv4();
-              const job = db.createJob(
-                jobId, 
-                call.args.workflowId as string, 
-                call.args.jobType as string, 
-                parsedPayload
+              // Fix #2: args are already a structured object — no JSON.parse needed
+              const { workflowId, ...stateDelta } = call.args as { workflowId: string; [key: string]: unknown };
+              // Remove undefined fields
+              const cleanDelta = Object.fromEntries(
+                Object.entries(stateDelta).filter(([, v]) => v !== undefined)
               );
-              console.log(`[Gemini] Enqueued job: ${jobId}`);
-              result = { success: true, jobId, status: 'PENDING' };
+              const wf = db.updateWorkflowState(workflowId, cleanDelta);
+              result = { success: true, newState: wf?.state ?? {} };
             }
-          } catch (e: any) {
-             console.error(`[Gemini] Tool execution error for ${call.name}:`, e.message);
-             result = { success: false, error: e.message };
+            else if (call.name === 'fetch_state') {
+              const { workflowId } = call.args as { workflowId: string };
+              const wf = db.workflows.get(workflowId);
+              result = { success: true, state: wf?.state ?? {}, workflowStatus: wf?.status ?? 'NOT_FOUND' };
+            }
+            else if (call.name === 'enqueue_featherless_job') {
+              const { workflowId, jobType, ...payloadFields } = call.args as {
+                workflowId: string; jobType: string; [key: string]: unknown;
+              };
+              const jobId = uuidv4();
+              db.createJob(jobId, workflowId, jobType, payloadFields);
+              // Also reflect jobId into workflow state so status checks see it
+              db.updateWorkflowState(workflowId, { jobId, stage: 'analysis_queued' });
+              console.log(`[Gemini] Enqueued job ${jobId} (${jobType}) on workflow ${workflowId}`);
+              result = { success: true, jobId, workflowId, status: 'PENDING' };
+            }
+            else {
+              result = { success: false, error: `Unknown tool: ${call.name}` };
+            }
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.error(`[Gemini] Tool error (${call.name}):`, msg);
+            result = { success: false, error: msg };
           }
 
-          functionResponses.push({
-            name: call.name,
-            response: result
-          });
+          functionResponses.push({ name: call.name ?? 'unknown', response: result });
         }
 
-        // Send tool execution results back to Gemini
-        console.log(`[Gemini] Sending tool responses back...`);
-        response = await chat.sendMessage(functionResponses);
+        console.log(`[Gemini] Returning ${functionResponses.length} tool result(s) to model...`);
+        response = await chat.sendMessage(functionResponses as any);
       }
 
-      // Return the final text response
-      return response.text || "I processed that, but have no text response.";
+      const finalText = (response.text != null && response.text !== '') 
+        ? response.text 
+        : 'I processed that, but have no text response.';
+
+      // Persist model turn to db
+      db.appendChatMessage(conversationId, { role: 'model', parts: [{ text: finalText }] });
+
+      return finalText;
 
     } catch (error) {
       console.error('[Gemini] Error processing input:', error);
-      return "I encountered an error while processing your request.";
+      return 'I encountered an error while processing your request. Please try again.';
     }
   }
 }

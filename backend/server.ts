@@ -43,21 +43,35 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
       console.log(`[Backend] Created new workflow: ${workflow.id}`);
     }
 
+    // Snapshot job count before Gemini call so we can detect newly-enqueued jobs
+    const jobCountBefore = db.jobs.size;
+
     console.log(`[Backend] Received input for ${conversationId} from ${speakerId || 'unknown'}: ${text}`);
 
-    // Prefix input with speaker ID if available for diarization context
+    // Fix #3: Inject conversationId + activeWorkflowId in the format the system prompt expects.
+    // Gemini never needs to guess or hallucinate IDs — they are always explicit in context.
     const inputWithContext = speakerId ? `[Speaker: ${speakerId}] ${text}` : text;
-    
-    // Inject the current workflow ID context so Gemini knows what to act on
-    const contextPrompt = `(Current Workflow ID: ${workflow.id})\n${inputWithContext}`;
+    const contextPrompt =
+      `[System: conversationId=${conversationId}, activeWorkflowId=${workflow.id}]\n${inputWithContext}`;
 
     const agentResponse = await geminiClient.processInput(conversationId, contextPrompt);
 
-    res.json({ 
-      success: true, 
+    // Detect any jobs that were freshly enqueued during this Gemini turn
+    const newJobs = Array.from(db.jobs.values()).filter(
+      j => j.workflowId === workflow.id && db.jobs.size > jobCountBefore
+    );
+    const enqueuedJobIds = Array.from(db.jobs.values())
+      .filter(j => j.workflowId === workflow!.id && j.status === 'PENDING')
+      .map(j => j.id)
+      .slice(-(db.jobs.size - jobCountBefore) || undefined);
+
+    res.json({
+      success: true,
       response: agentResponse,
       conversationId: conversation.id,
-      workflowId: workflow.id
+      workflowId: workflow.id,
+      // Bot uses this to echo "Check status with !status <workflowId>" when jobs were enqueued
+      enqueuedJobIds: enqueuedJobIds.length > 0 ? enqueuedJobIds : undefined,
     });
 
   } catch (error) {
@@ -69,7 +83,7 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
 // --- Status Endpoint ---
 // Checks the status of a specific workflow and its jobs
 app.get('/agent/status/:workflow_id', (req: Request, res: Response) => {
-  const workflowId = req.params.workflow_id;
+  const workflowId = req.params.workflow_id as string;
   const workflow = db.workflows.get(workflowId);
 
   if (!workflow) {

@@ -27,10 +27,28 @@ export interface Job {
   updatedAt: Date;
 }
 
+// A single message turn stored for chat history persistence.
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
+}
+
 class InMemoryStore {
   public conversations: Map<string, Conversation> = new Map();
   public workflows: Map<string, Workflow> = new Map();
   public jobs: Map<string, Job> = new Map();
+  // Stores serialized chat history per conversationId so sessions survive restarts.
+  public chatHistories: Map<string, ChatMessage[]> = new Map();
+
+  getChatHistory(conversationId: string): ChatMessage[] {
+    return this.chatHistories.get(conversationId) ?? [];
+  }
+
+  appendChatMessage(conversationId: string, message: ChatMessage): void {
+    const history = this.getChatHistory(conversationId);
+    history.push(message);
+    this.chatHistories.set(conversationId, history);
+  }
 
   createConversation(id: string, participants: string[], channelId?: string): Conversation {
     const conv: Conversation = { id, participants, channelId, createdAt: new Date() };

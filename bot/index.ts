@@ -20,6 +20,8 @@ const BACKEND_URL = 'http://localhost:3000';
 
 let speechmatics: SpeechmaticsClient | null = null;
 let activeConversationId: string | null = null;
+// Fix #6: Store a reference to the text channel so voice transcripts can be posted back there.
+let activeTextChannel: import('discord.js').TextChannel | null = null;
 
 // Maps Discord userId → Speechmatics speaker label (S1, S2, etc.) for per-speaker attribution in state.
 const userSpeakerMap: Map<string, string> = new Map();
@@ -43,13 +45,25 @@ function initSpeechmatics() {
       const response = await axios.post(`${BACKEND_URL}/agent/invoke`, {
         conversationId: activeConversationId,
         text: transcript,
-        speakerId: speaker, // In a real app, map discord user ID to speaker ID
+        speakerId: speaker,
         type: 'voice'
       });
-      
-      const agentText = response.data.response;
-      console.log(`[Discord Bot] Agent says: ${agentText}`);
-      // The bot could TTS this back, or just print it. For now, we print it to a default channel.
+
+      const agentText: string = response.data.response;
+      const workflowId: string = response.data.workflowId;
+      const enqueuedJobIds: string[] | undefined = response.data.enqueuedJobIds;
+
+      // Build the reply text, always tagging the workflowId for status checking
+      let replyText = `**[${speaker}]** ${transcript}\n> 🤖 ${agentText}`;
+      if (enqueuedJobIds && enqueuedJobIds.length > 0) {
+        replyText += `\n> 📋 Job queued! Check status with: \`!status ${workflowId}\``;
+      }
+
+      // Post to the text channel — this is how voice responses reach Discord users
+      if (activeTextChannel) {
+        await activeTextChannel.send(replyText);
+      }
+      console.log(`[Discord Bot] Posted agent response to channel.`);
     } catch (error) {
       console.error('[Discord Bot] Error invoking agent:', error);
     }
@@ -68,7 +82,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
       return;
     }
 
-    activeConversationId = message.channel.id; // Use text channel ID as conversation ID
+    activeConversationId = message.channel.id;
+    // Fix #6: Store the text channel so voice transcript responses can be posted here
+    activeTextChannel = message.channel as import('discord.js').TextChannel;
     if (!speechmatics) initSpeechmatics();
 
     const connection = joinVoiceChannel({
@@ -126,7 +142,15 @@ client.on(Events.MessageCreate, async (message: Message) => {
         speakerId: message.author.username,
         type: 'text'
       });
-      message.reply(response.data.response);
+      const workflowId: string = response.data.workflowId;
+      const enqueuedJobIds: string[] | undefined = response.data.enqueuedJobIds;
+      
+      let reply = response.data.response as string;
+      // Fix #6: When a job is enqueued, echo the workflowId explicitly so !status is usable
+      if (enqueuedJobIds && enqueuedJobIds.length > 0) {
+        reply += `\n\n📋 Job queued! Track it with: \`!status ${workflowId}\``;
+      }
+      message.reply(reply);
     } catch (error) {
       console.error(error);
       message.reply('Error talking to the agent backend.');
