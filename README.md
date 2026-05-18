@@ -63,5 +63,11 @@ npm run start:bot
 7. Gemini will enqueue a Featherless job. You will see the worker pick it up in your backend terminal and output structured JSON results.
 8. You can also interact via text using `!agent say [message]`.
 
+### 5. Web Demo (No Discord Required)
+If you don't have Discord voice channels configured or want to test the central Gemini orchestrator directly via text:
+1. Ensure the **Backend API & Asynchronous Worker** is running (`npm run start:backend`).
+2. Simply open the self-contained `demo/index.html` dashboard file directly inside your browser.
+3. Prompt the agent textually (e.g., *"Let's evaluate Acme Corp."*) and check the real-time background analysis dashboard populate dynamically as enqueued tasks settle!
+
 ## License
 MIT

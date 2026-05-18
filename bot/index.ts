@@ -3,6 +3,7 @@ import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, VoiceConnecti
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { SpeechmaticsClient } from './speechmatics';
+import { Job } from '../backend/db';
 // prism-media is required inline (CJS) to access the opus decoder at runtime.
 
 dotenv.config();
@@ -19,7 +20,7 @@ const client = new Client({
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 
 interface SendableChannel {
-  send: (content: string) => Promise<any>;
+  send: (content: string) => Promise<unknown>;
 }
 
 interface GuildSession {
@@ -101,15 +102,15 @@ client.on(Events.MessageCreate, async (message: Message) => {
   const guildId = message.guildId;
   if (!guildId) return; // Only process guild commands
 
-  // Help command (BUG K)
+  // Help command
   if (message.content.trim() === '!help') {
     await sendLongMessage(message, [
-      `🤖 **Dealflow Orchestrator Bot — Command Guide**`,
+      `**Dealflow Orchestrator — Interface Command Guide**`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       `• \`!help\` — Displays this guide.`,
       `• \`!agent join\` — Invites the bot to your current voice channel to start listening.`,
       `• \`!agent say <text>\` — Interacts with the central Gemini orchestrator via text.`,
-      `• \`!status <workflow_id>\` — Fetches a beautiful real-time dashboard of enqueued background analysis jobs.`,
+      `• \`!status <workflow_id>\` — Shows workflow stage, job status, and analysis results.`,
       `• \`!agent leave\` — Orders the bot to disconnect from the voice channel and reset context.`,
     ].join('\n'), true);
     return;
@@ -233,6 +234,15 @@ client.on(Events.MessageCreate, async (message: Message) => {
         console.log(`[Discord Bot] User ${userId} (${session.userSpeakerMap.get(userId)}) started speaking.`);
       });
     });
+
+    connection.on(VoiceConnectionStatus.Disconnected, () => {
+      console.warn(`[Discord Bot] Voice connection disconnected for guild ${guildId}. Cleaning up.`);
+      const session = guildSessions.get(guildId);
+      if (session) {
+        session.speechmatics.close();
+        guildSessions.delete(guildId);
+      }
+    });
     return;
   }
 
@@ -273,7 +283,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
       
       let reply = response.data.response as string;
       if (enqueuedJobIds && enqueuedJobIds.length > 0) {
-        reply += `\n\n📋 Job queued! Track it with: \`!status ${workflowId}\``;
+        reply += `\n\n[System] Background analysis enqueued. Track progress using: \`!status ${workflowId}\``;
       }
       
       await sendLongMessage(message, reply, true);
@@ -298,34 +308,40 @@ client.on(Events.MessageCreate, async (message: Message) => {
       const { workflow, jobs } = response.data;
       
       const jobSummary = jobs.length > 0
-        ? jobs.map((j: any) => {
+        ? jobs.map((j: Job) => {
             let detail = `• **${j.type}**: \`${j.status}\``;
             if (j.status === 'COMPLETED' && j.result) {
-              const res = j.result as any;
-              detail += ` ✅\n  > 🎯 **Score:** \`${res.score}/10\` | **Recommendation:** \`${res.recommendation}\`\n  > 📝 **Summary:** *${res.summary}*\n  > 🟢 **Pros:** ${res.pros?.join(', ') || 'None'}\n  > 🔴 **Cons:** ${res.cons?.join(', ') || 'None'}`;
+              const res = j.result as {
+                score?: string;
+                recommendation?: string;
+                summary?: string;
+                pros?: string[];
+                cons?: string[];
+              };
+              detail += ` [SUCCESS]\n  > **Investment Score:** \`${res.score}/10\` | **Recommendation:** \`${res.recommendation}\`\n  > **Executive Summary:** *${res.summary}*\n  > **Strengths:** ${res.pros?.join(', ') || 'None'}\n  > **Risks:** ${res.cons?.join(', ') || 'None'}`;
             } else if (j.status === 'FAILED' && j.error) {
-              detail += ` ❌\n  > ⚠️ **Error:** *${j.error}*`;
+              detail += ` [FAILED]\n  > **Error Details:** *${j.error}*`;
             }
             return detail;
           }).join('\n\n')
         : 'No background jobs enqueued.';
         
       const dealName = workflow.state?.dealName || 'Unknown Deal';
-      const stageEmojiMap: Record<string, string> = {
-        'initial': '💬',
-        'gathering': '📝',
-        'analysis_queued': '⏳',
-        'analysis_done': '✨',
-        'decision': '🏁',
+      const stageLabels: Record<string, string> = {
+        'initial': 'Initial Discovery',
+        'gathering': 'Information Gathering',
+        'analysis_queued': 'Analysis Queued',
+        'analysis_done': 'Analysis Completed',
+        'decision': 'Investment Decision',
       };
-      const emoji = stageEmojiMap[workflow.state?.stage] || '🔄';
+      const label = stageLabels[workflow.state?.stage] || 'Active';
 
       const statusResponse = [
-        `📊 **Dealflow Analysis: ${dealName}** (ID: \`${workflow.id.slice(0, 8)}\`)`,
+        `**ChorusOps Dealflow Analysis Pipeline — ${dealName}** (ID: \`${workflow.id.slice(0, 8)}\`)`,
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        `● **Stage:** ${emoji} \`${workflow.state?.stage || 'N/A'}\``,
-        `● **Status:** \`${workflow.status}\``,
-        `● **Background Jobs:**\n${jobSummary}`,
+        `● **Stage:** \`${label}\``,
+        `● **Pipeline Status:** \`${workflow.status}\``,
+        `● **Asynchronous Analytical Jobs:**\n${jobSummary}`,
       ].join('\n');
 
       await sendLongMessage(message, statusResponse, true);
