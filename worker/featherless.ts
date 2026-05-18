@@ -8,7 +8,7 @@ const client = new OpenAI({
   baseURL: process.env.FEATHERLESS_BASE_URL || 'https://api.featherless.ai/v1',
 });
 
-const MODEL = process.env.FEATHERLESS_MODEL || 'meta-llama/Meta-Llama-3-70B-Instruct';
+const MODEL = process.env.FEATHERLESS_MODEL || 'meta-llama/Llama-3.3-70B-Instruct';
 
 export interface DeepAnalysisResult {
   summary: string;

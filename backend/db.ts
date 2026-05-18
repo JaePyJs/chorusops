@@ -10,7 +10,7 @@ export interface Workflow {
   conversationId: string;
   type: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
-  state: Record<string, any>;
+  state: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,9 +19,9 @@ export interface Job {
   id: string;
   workflowId: string;
   type: string;
-  payload: any;
+  payload: unknown;
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-  result?: any;
+  result?: unknown;
   error?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -72,7 +72,7 @@ class InMemoryStore {
     return wf;
   }
 
-  updateWorkflowState(id: string, stateDelta: Record<string, any>): Workflow | undefined {
+  updateWorkflowState(id: string, stateDelta: Record<string, unknown>): Workflow | undefined {
     const wf = this.workflows.get(id);
     if (!wf) return undefined;
     wf.state = { ...wf.state, ...stateDelta };
@@ -80,7 +80,7 @@ class InMemoryStore {
     return wf;
   }
 
-  createJob(id: string, workflowId: string, type: string, payload: any): Job {
+  createJob(id: string, workflowId: string, type: string, payload: unknown): Job {
     const job: Job = {
       id,
       workflowId,
@@ -94,7 +94,7 @@ class InMemoryStore {
     return job;
   }
 
-  updateJobStatus(id: string, status: Job['status'], result?: any, error?: string): Job | undefined {
+  updateJobStatus(id: string, status: Job['status'], result?: unknown, error?: string): Job | undefined {
     const job = this.jobs.get(id);
     if (!job) return undefined;
     job.status = status;

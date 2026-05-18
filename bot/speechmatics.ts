@@ -11,6 +11,11 @@ export class SpeechmaticsClient {
   private onTranscript: (transcript: string, speaker: string) => void;
   private isConnected = false;
 
+  // Segment buffering to ensure Gemini receives a complete spoken turn (SMART_TURN)
+  // rather than triggering LLM invocations prematurely on partial sentences.
+  private transcriptBuffer: string[] = [];
+  private lastSpeaker = 'S1';
+
   constructor(apiKey: string, onTranscript: (transcript: string, speaker: string) => void) {
     this.apiKey = apiKey;
     this.onTranscript = onTranscript;
@@ -32,6 +37,7 @@ export class SpeechmaticsClient {
 
       // SMART_TURN equivalent configuration per turn-detection docs:
       //   - end_of_utterance_silence_trigger: 0.5s → fires EndOfUtterance after 0.5s of silence
+      //     Note: This parameter belongs directly inside transcription_config, NOT nested under conversation_config.
       //   - enable_partials: false → no mid-word AddPartialTranscript events sent to us
       //   - diarization: 'speaker' → AddTranscript includes per-word speaker labels (S1, S2, ...)
       //   - max_delay: 5 → server must emit a final transcript within 5s regardless
@@ -48,10 +54,8 @@ export class SpeechmaticsClient {
           enable_partials: false,
           diarization: 'speaker',
           max_delay: 5,
-          conversation_config: {
-            // 0.5s of silence triggers end of utterance — recommended for voice AI (docs: 0.5-0.8s)
-            end_of_utterance_silence_trigger: 0.5,
-          },
+          // 0.5s of silence triggers end of utterance — recommended for voice AI (docs: 0.5-0.8s)
+          end_of_utterance_silence_trigger: 0.5,
         },
       };
 
@@ -74,8 +78,8 @@ export class SpeechmaticsClient {
         }
 
         case 'AddTranscript': {
-          // Final transcript for a complete utterance.
-          // With enable_partials: false, this fires once per full speaker turn.
+          // Final transcript segment. We buffer it instead of passing to the LLM immediately.
+          // This ensures that the user is able to finish speaking their entire thought before we respond.
           const transcript: string = msg.metadata?.transcript ?? '';
           if (!transcript.trim()) break;
 
@@ -84,8 +88,9 @@ export class SpeechmaticsClient {
           const results: any[] = msg.results ?? [];
           const speaker: string = results[0]?.alternatives?.[0]?.speaker ?? 'S1';
 
-          console.log(`[Speechmatics] Final [${speaker}]: ${transcript.trim()}`);
-          this.onTranscript(transcript.trim(), speaker);
+          console.log(`[Speechmatics] Segment [${speaker}]: ${transcript.trim()}`);
+          this.transcriptBuffer.push(transcript.trim());
+          this.lastSpeaker = speaker;
           break;
         }
 
@@ -100,15 +105,16 @@ export class SpeechmaticsClient {
 
         case 'EndOfUtterance': {
           // Fires after end_of_utterance_silence_trigger seconds of silence.
-          // The preceding AddTranscript already triggered onTranscript.
-          // This event is useful for UI indicators (e.g., "user stopped speaking").
+          // This is the correct event to flush all buffered segments as a single speaker turn.
           console.log(`[Speechmatics] EndOfUtterance at ${msg.time}s`);
+          this.flushBuffer();
           break;
         }
 
         case 'EndOfTranscript': {
           console.log('[Speechmatics] Session ended (EndOfTranscript).');
           this.isConnected = false;
+          this.flushBuffer();
           break;
         }
 
@@ -127,11 +133,21 @@ export class SpeechmaticsClient {
     this.ws.on('close', (code, reason) => {
       this.isConnected = false;
       console.log(`[Speechmatics] WebSocket closed. Code: ${code}, Reason: ${reason?.toString() || 'none'}`);
+      this.flushBuffer();
     });
 
     this.ws.on('error', (err) => {
       console.error('[Speechmatics] WebSocket error:', err.message);
     });
+  }
+
+  private flushBuffer() {
+    if (this.transcriptBuffer.length > 0) {
+      const fullTurn = this.transcriptBuffer.join(' ');
+      this.transcriptBuffer = [];
+      console.log(`[Speechmatics] Flushing complete turn [${this.lastSpeaker}]: ${fullTurn}`);
+      this.onTranscript(fullTurn, this.lastSpeaker);
+    }
   }
 
   sendAudio(pcmData: Buffer) {

@@ -1,5 +1,5 @@
 import { db } from '../backend/db';
-import { featherlessClient } from './featherless';
+import { featherlessClient, DeepAnalysisPayload } from './featherless';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -22,7 +22,7 @@ export function startWorker() {
 
     try {
       if (pendingJob.type === 'DEEP_ANALYSIS') {
-        const result = await featherlessClient.runDeepAnalysis(pendingJob.payload);
+        const result = await featherlessClient.runDeepAnalysis(pendingJob.payload as DeepAnalysisPayload);
         db.updateJobStatus(pendingJob.id, 'COMPLETED', result);
         console.log(`[Worker] Job ${pendingJob.id} COMPLETED.`);
       } else {
