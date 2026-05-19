@@ -69,9 +69,9 @@ Bot (voice):  "Deep analysis has been queued for this deal."
 Bot (voice):  "Analysis complete. Score: 6/10. Recommendation: Pass."
 ```
 
-![ChorusOps Discord Bot](discord.png)
+![ChorusOps Discord Bot](assets/discord.png)
 
-![ChorusOps Dashboard](dashboard.png)
+![ChorusOps Dashboard](assets/dashboard.png)
 
 ---
 
