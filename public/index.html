@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ChorusOps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:      #080F1C;
+      --surface: #0E1829;
+      --card:    #111F33;
+      --lift:    #162540;
+      --teal:    #2DD4BF;
+      --blue:    #60A5FA;
+      --lav:     #A78BFA;
+      --pink:    #F472B6;
+      --gold:    #FBBF24;
+      --white:   #EFF6FF;
+      --sub:     #64748B;
+      --border:  rgba(255,255,255,0.07);
+      --glow-t:  rgba(45,212,191,0.15);
+      --glow-b:  rgba(96,165,250,0.12);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(8,15,28,0.85);
+      backdrop-filter: blur(12px);
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .logo-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 8px var(--teal);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.6; transform: scale(0.85); }
+    }
+    .logo-name { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-tag  { font-size: 11px; color: var(--sub); font-weight: 400; margin-left: 4px; }
+    .nav-chips { display: flex; gap: 6px; }
+    .chip {
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--sub);
+    }
+
+    /* ── HERO ── */
+    .hero {
+      max-width: 680px; margin: 64px auto 48px;
+      padding: 0 24px; text-align: center;
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: 1.2px;
+      color: var(--teal); text-transform: uppercase; margin-bottom: 20px;
+    }
+    .hero-eyebrow::before, .hero-eyebrow::after {
+      content: ''; display: block; width: 24px; height: 1px; background: var(--teal); opacity: 0.4;
+    }
+    .hero h1 {
+      font-size: clamp(28px,5vw,44px);
+      font-weight: 700; letter-spacing: -1px; line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 15px; color: var(--sub); font-weight: 400; max-width: 520px; margin: 0 auto;
+    }
+
+    /* ── MAIN GRID ── */
+    .grid {
+      max-width: 1100px; margin: 0 auto 48px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media(max-width:760px){ .grid { grid-template-columns: 1fr; } }
+    .full { grid-column: 1 / -1; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: rgba(255,255,255,0.12); }
+    .card-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 1.4px;
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .card-title {
+      font-size: 16px; font-weight: 600; margin-bottom: 4px;
+    }
+    .card-sub {
+      font-size: 12px; color: var(--sub); margin-bottom: 18px; line-height: 1.5;
+    }
+
+    /* ── TEXTAREA ── */
+    textarea {
+      width: 100%; min-height: 130px;
+      background: var(--lift); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--white);
+      font-family: inherit; font-size: 14px; line-height: 1.6;
+      padding: 14px 16px; resize: vertical;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: rgba(45,212,191,0.4);
+      box-shadow: 0 0 0 3px rgba(45,212,191,0.08);
+    }
+    textarea::placeholder { color: var(--sub); }
+
+    /* ── BUTTON ── */
+    .btn {
+      margin-top: 12px; width: 100%; padding: 13px;
+      border-radius: 10px; border: none;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer; letter-spacing: 0.2px;
+      background: linear-gradient(135deg, var(--teal) 0%, var(--blue) 100%);
+      color: #060e1a;
+      box-shadow: 0 4px 20px rgba(45,212,191,0.2);
+      transition: opacity .15s, transform .1s, box-shadow .15s;
+    }
+    .btn:hover  { opacity: .9; box-shadow: 0 6px 28px rgba(45,212,191,0.3); }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+
+    /* ── RESPONSE BOX ── */
+    .response-box {
+      background: var(--lift); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px;
+      font-size: 14px; line-height: 1.7; min-height: 100px;
+      color: var(--white); white-space: pre-wrap;
+      transition: border-color .3s;
+    }
+    .response-box.empty { color: var(--sub); font-style: italic; }
+    .response-box.active { border-color: rgba(96,165,250,0.3); }
+    .wf-id {
+      margin-top: 8px; font-size: 11px; color: var(--sub);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* ── SPINNER ── */
+    .spin-row {
+      display: none; align-items: center; gap: 10px;
+      padding: 10px 0; color: var(--blue); font-size: 13px;
+    }
+    .spin-ring {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(96,165,250,0.2);
+      border-top-color: var(--blue);
+      animation: spin .65s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── DEAL STATE ── */
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { padding: 12px 14px; background: var(--lift); border-radius: 10px; }
+    .field .fl { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--sub); text-transform: uppercase; margin-bottom: 4px; }
+    .field .fv { font-size: 13px; font-weight: 500; color: var(--white); }
+    .full-field { grid-column: 1/-1; }
+    .stage-pill {
+      display: inline-block; padding: 2px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+      background: rgba(45,212,191,0.1); border: 1px solid rgba(45,212,191,0.3);
+      color: var(--teal);
+    }
+
+    /* ── SCORECARD ── */
+    #scorecard { display: none; }
+    .score-row {
+      display: flex; align-items: center; gap: 20px; margin-bottom: 16px;
+    }
+    .score-big {
+      font-size: 56px; font-weight: 800; line-height: 1; letter-spacing: -2px;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .score-meta { display: flex; flex-direction: column; gap: 4px; }
+    .score-of { font-size: 11px; color: var(--sub); }
+    .rec-tag {
+      display: inline-block; padding: 4px 12px; border-radius: 6px;
+      font-size: 12px; font-weight: 600; border: 1px solid;
+    }
+    .invest { background: rgba(45,212,191,0.08); border-color: rgba(45,212,191,0.35); color: var(--teal); }
+    .pass   { background: rgba(244,114,182,0.08); border-color: rgba(244,114,182,0.35); color: var(--pink); }
+    .summary {
+      font-size: 13px; color: var(--sub); line-height: 1.7;
+      padding: 14px; background: var(--lift); border-radius: 10px; margin-bottom: 16px;
+    }
+    .pc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .pc-block h5 { font-size: 11px; font-weight: 600; letter-spacing: 1px; margin-bottom: 10px; }
+    .pc-block ul { list-style: none; }
+    .pc-block ul li {
+      font-size: 12px; color: var(--sub); padding: 6px 0;
+      border-bottom: 1px solid var(--border); line-height: 1.5;
+      display: flex; gap: 8px;
+    }
+    .pc-block ul li span.mk { flex-shrink: 0; font-size: 11px; margin-top: 1px; }
+
+    /* ── PIPELINE ── */
+    .pipe-wrap {
+      display: flex; align-items: center; gap: 0;
+      overflow-x: auto; padding: 4px 0 8px;
+    }
+    .pipe-wrap::-webkit-scrollbar { height: 4px; }
+    .pipe-wrap::-webkit-scrollbar-track { background: transparent; }
+    .pipe-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .pnode {
+      flex: 1; min-width: 130px;
+      background: var(--lift); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 12px; text-align: center;
+      transition: border-color .2s;
+    }
+    .pnode:hover { border-color: rgba(255,255,255,0.15); }
+    .pnode .pi { font-size: 20px; margin-bottom: 6px; }
+    .pnode .pn { font-size: 12px; font-weight: 600; }
+    .pnode .ps { font-size: 10px; color: var(--sub); margin-top: 2px; }
+    .parr { font-size: 16px; color: var(--border); padding: 0 8px; flex-shrink: 0; }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center; padding: 32px 24px 40px;
+      font-size: 11px; color: var(--sub);
+      border-top: 1px solid var(--border);
+    }
+    footer strong { color: rgba(255,255,255,0.3); font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span class="logo-name">ChorusOps</span>
+    <span class="logo-tag">/ voice-native dealflow</span>
+  </div>
+  <div class="nav-chips">
+    <span class="chip">🎤 Speechmatics</span>
+    <span class="chip">🧠 Gemini 2.5</span>
+    <span class="chip">⚡ Featherless</span>
+    <span class="chip" style="color:#94a3b8">AI Agent Olympics 2026</span>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-eyebrow">Live Demo</div>
+  <h1>Your voice is the<br/><span>only interface.</span></h1>
+  <p>Type a startup pitch. The agent tracks the deal, dispatches analysis, and returns a scored investment scorecard — no clicks required.</p>
+</div>
+
+<div class="grid">
+
+  <!-- INPUT -->
+  <div class="card">
+    <div class="card-label" style="color:var(--teal)">Pitch Input</div>
+    <div class="card-title">Talk to the agent</div>
+    <div class="card-sub">Describe any startup. The orchestrator extracts deal context automatically.</div>
+    <textarea id="pitchInput" placeholder="Describe your startup pitch...">We're building a B2B logistics SaaS for last-mile delivery optimization. Three-person founding team — two engineers and a former DHL operations lead. We're targeting a $4 billion addressable market and raising a $500k seed round.</textarea>
+    <button class="btn" id="runBtn" onclick="runAgent()">Run Agent →</button>
+  </div>
+
+  <!-- RESPONSE -->
+  <div class="card">
+    <div class="card-label" style="color:var(--blue)">Orchestrator</div>
+    <div class="card-title">Gemini's reply</div>
+    <div class="card-sub">The agent confirms what it understood and what it tracked.</div>
+    <div class="response-box empty" id="responseBox">Waiting for your pitch...</div>
+    <div class="spin-row" id="spinner">
+      <div class="spin-ring"></div>
+      <span id="spinnerText">Contacting Gemini orchestrator...</span>
+    </div>
+    <div class="wf-id" id="workflowTag"></div>
+  </div>
+
+  <!-- DEAL STATE -->
+  <div class="card">
+    <div class="card-label" style="color:var(--lav)">Deal State</div>
+    <div class="card-title">Live pipeline tracker</div>
+    <div class="card-sub">Gemini updates these fields as you speak.</div>
+    <div class="field-row">
+      <div class="field">
+        <div class="fl">Stage</div>
+        <div class="fv"><span class="stage-pill" id="stageVal">—</span></div>
+      </div>
+      <div class="field">
+        <div class="fl">Deal Name</div>
+        <div class="fv" id="dealNameVal">—</div>
+      </div>
+      <div class="field">
+        <div class="fl">Funding Ask</div>
+        <div class="fv" id="askVal">—</div>
+      </div>
+      <div class="field">
+        <div class="fl">Team Notes</div>
+        <div class="fv" id="teamVal">—</div>
+      </div>
+      <div class="field full-field">
+        <div class="fl">Market Notes</div>
+        <div class="fv" id="marketVal">—</div>
+      </div>
+      <div class="field full-field">
+        <div class="fl">Analysis Job</div>
+        <div class="fv" id="jobStatusVal">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCORECARD -->
+  <div class="card" id="scorecard">
+    <div class="card-label" style="color:var(--gold)">Featherless Analysis</div>
+    <div class="card-title">Investment scorecard</div>
+    <div class="card-sub">Generated by an open-source LLM worker running in the background.</div>
+    <div class="score-row">
+      <div class="score-big" id="scoreNum">—</div>
+      <div class="score-meta">
+        <span class="score-of">out of 10</span>
+        <span class="rec-tag" id="recBadge">—</span>
+      </div>
+    </div>
+    <div class="summary" id="summaryText">—</div>
+    <div class="pc-grid">
+      <div class="pc-block">
+        <h5 style="color:var(--teal)">Strengths</h5>
+        <ul id="prosList"></ul>
+      </div>
+      <div class="pc-block">
+        <h5 style="color:var(--pink)">Risks</h5>
+        <ul id="consList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <div class="card full">
+    <div class="card-label" style="color:var(--sub)">How it works</div>
+    <div class="card-title" style="margin-bottom:20px">End-to-end agentic pipeline</div>
+    <div class="pipe-wrap">
+      <div class="pnode" style="border-color:rgba(96,165,250,0.3)">
+        <div class="pi">🎤</div>
+        <div class="pn" style="color:var(--blue)">Voice Input</div>
+        <div class="ps">Discord Opus PCM</div>
+      </div>
+      <div class="parr">›</div>
+      <div class="pnode" style="border-color:rgba(45,212,191,0.3)">
+        <div class="pi">📡</div>
+        <div class="pn" style="color:var(--teal)">Speechmatics RT</div>
+        <div class="ps">STT + Diarization</div>
+      </div>
+      <div class="parr">›</div>
+      <div class="pnode" style="border-color:rgba(167,139,250,0.3)">
+        <div class="pi">🧠</div>
+        <div class="pn" style="color:var(--lav)">Gemini 2.5 Flash</div>
+        <div class="ps">Agentic Orchestrator</div>
+      </div>
+      <div class="parr">›</div>
+      <div class="pnode" style="border-color:rgba(244,114,182,0.3)">
+        <div class="pi">⚡</div>
+        <div class="pn" style="color:var(--pink)">Featherless Worker</div>
+        <div class="ps">Async Deep Analysis</div>
+      </div>
+      <div class="parr">›</div>
+      <div class="pnode" style="border-color:rgba(251,191,36,0.3)">
+        <div class="pi">🔊</div>
+        <div class="pn" style="color:var(--gold)">Kokoro TTS</div>
+        <div class="ps">Voice Response</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <strong>ChorusOps</strong> &nbsp;·&nbsp; Built by Jae &nbsp;·&nbsp; Team J4D &nbsp;·&nbsp; AI Agent Olympics 2026<br/>
+  <span style="margin-top:6px;display:block">Speechmatics &nbsp;·&nbsp; Gemini 2.5 Flash &nbsp;·&nbsp; Featherless &nbsp;·&nbsp; Kokoro TTS &nbsp;·&nbsp; Discord.js</span>
+</footer>
+
+<script>
+  const BACKEND = 'https://chorusops-backend.onrender.com';
+  let pollInterval = null;
+
+  function uid() {
+    return 'demo-web-' + Date.now() + '-' + Math.random().toString(36).slice(2,7);
+  }
+
+  async function runAgent() {
+    const text = document.getElementById('pitchInput').value.trim();
+    if (!text) return;
+    const btn = document.getElementById('runBtn');
+    btn.disabled = true;
+    clearUI();
+    showSpinner('Contacting Gemini orchestrator...');
+
+    try {
+      const res = await fetch(`${BACKEND}/agent/invoke`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ conversationId: uid(), text, speakerId: 'Demo User', type: 'text' })
+      });
+      const data = await res.json();
+      setResponse(data.response || 'No response.');
+      document.getElementById('workflowTag').textContent = 'workflow · ' + data.workflowId;
+      hideSpinner();
+      startPolling(data.workflowId);
+    } catch(e) {
+      setResponse('Could not reach the backend. Render may be waking up — wait 30s and try again.');
+      hideSpinner();
+      btn.disabled = false;
+    }
+  }
+
+  function startPolling(wid) {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(() => poll(wid), 3000);
+    poll(wid);
+  }
+
+  async function poll(wid) {
+    try {
+      const r = await fetch(`${BACKEND}/agent/status/${wid}`);
+      const d = await r.json();
+      if (!d.workflow) return;
+      const s = d.workflow.state || {};
+      const jobs = d.jobs || [];
+
+      set('stageVal',    s.stage      || '—');
+      set('dealNameVal', s.dealName   || '—');
+      set('askVal',      s.ask        || '—');
+      set('teamVal',     s.teamNotes  || '—');
+      set('marketVal',   s.marketNotes|| '—');
+
+      const job = jobs[jobs.length - 1];
+      if (job) {
+        set('jobStatusVal', job.status);
+        if (job.status === 'PENDING' || job.status === 'RUNNING') {
+          showSpinner('⚡ Featherless worker analyzing deal...');
+        }
+        if (job.status === 'COMPLETED' && job.result) {
+          hideSpinner();
+          renderScorecard(job.result);
+          clearInterval(pollInterval);
+          document.getElementById('runBtn').disabled = false;
+        }
+        if (job.status === 'FAILED') {
+          hideSpinner();
+          set('jobStatusVal', 'Analysis failed — check Featherless API key');
+          clearInterval(pollInterval);
+          document.getElementById('runBtn').disabled = false;
+        }
+      } else if (['COMPLETED','FAILED'].includes(d.workflow.status)) {
+        clearInterval(pollInterval);
+        document.getElementById('runBtn').disabled = false;
+        hideSpinner();
+      }
+    } catch(_) {}
+  }
+
+  function renderScorecard(r) {
+    document.getElementById('scorecard').style.display = 'block';
+    document.getElementById('scoreNum').textContent = r.score || '—';
+    document.getElementById('summaryText').textContent = r.summary || '—';
+    const rec = (r.recommendation||'').toLowerCase();
+    const b = document.getElementById('recBadge');
+    b.textContent = r.recommendation || '—';
+    b.className = 'rec-tag ' + (rec === 'invest' ? 'invest' : 'pass');
+
+    const pl = document.getElementById('prosList'); pl.innerHTML = '';
+    (r.pros||[]).forEach(p => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="mk" style="color:var(--teal)">+</span>${p}`;
+      pl.appendChild(li);
+    });
+    const cl = document.getElementById('consList'); cl.innerHTML = '';
+    (r.cons||[]).forEach(c => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="mk" style="color:var(--pink)">−</span>${c}`;
+      cl.appendChild(li);
+    });
+  }
+
+  function set(id, v) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v;
+  }
+  function setResponse(t) {
+    const el = document.getElementById('responseBox');
+    el.textContent = t; el.classList.remove('empty'); el.classList.add('active');
+  }
+  function clearUI() {
+    const rb = document.getElementById('responseBox');
+    rb.textContent = 'Waiting for your pitch...';
+    rb.className = 'response-box empty';
+    document.getElementById('scorecard').style.display = 'none';
+    document.getElementById('workflowTag').textContent = '';
+    ['stageVal','dealNameVal','askVal','teamVal','marketVal','jobStatusVal']
+      .forEach(id => set(id,'—'));
+  }
+  function showSpinner(msg) {
+    document.getElementById('spinner').style.display = 'flex';
+    document.getElementById('spinnerText').textContent = msg;
+  }
+  function hideSpinner() {
+    document.getElementById('spinner').style.display = 'none';
+  }
+</script>
+</body>
+</html>
