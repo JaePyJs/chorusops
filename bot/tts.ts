@@ -72,7 +72,7 @@ export async function speakInChannel(connection: VoiceConnection, text: string, 
       return;
     }
 
-    connection.subscribe(player);
+    const subscription = connection.subscribe(player);
     player.play(resource);
 
     await new Promise<void>((resolve, reject) => {
@@ -82,6 +82,9 @@ export async function speakInChannel(connection: VoiceConnection, text: string, 
         resolve(); // resolve not reject — keep bot alive
       });
     });
+
+    subscription?.unsubscribe();
+    player.stop();
   } catch (err) {
     console.error('[TTS] Failed to speak in channel:', err);
     // Silent fallback — text channel still gets the full response

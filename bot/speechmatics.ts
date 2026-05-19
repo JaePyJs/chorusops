@@ -32,7 +32,7 @@ export class SpeechmaticsClient {
   private transcriptBuffer: string[] = [];
   private lastSpeaker = 'S1';
   private silenceTimer: NodeJS.Timeout | null = null;
-  private readonly SILENCE_TIMEOUT_MS = 1200; // 1.2s of silence = flush
+  private readonly SILENCE_TIMEOUT_MS = 2500; // 2.5s of silence = flush
 
   constructor(apiKey: string, onTranscript: (transcript: string, speaker: string) => void) {
     this.apiKey = apiKey;
@@ -65,14 +65,13 @@ export class SpeechmaticsClient {
           type: 'raw',
           encoding: 'pcm_s16le',
           sample_rate: 48000,
-          channel_count: 2,
         },
         transcription_config: {
           language: 'en',
           operating_point: 'enhanced',
           enable_partials: false,
           diarization: 'speaker',
-          max_delay: 5,
+          max_delay: 1,
           // 1.2s of silence triggers end of utterance — perfect balance between rapid response and no interruptions
           conversation_config: {
             end_of_utterance_silence_trigger: 1.2,
@@ -171,6 +170,10 @@ export class SpeechmaticsClient {
     });
   }
 
+
+  forceFlush() {
+    // Intentionally a no-op: the client-side silenceTimer handles flushing natively.
+  }
 
   private flushBuffer() {
     if (this.silenceTimer) {

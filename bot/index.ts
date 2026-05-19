@@ -297,7 +297,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // Speak agent response in voice channel (Kokoro TTS)
         const spokenText = extractSpokenText(agentText);
         if (spokenText && session.connection && session.ttsEnabled) {
-          await speakInChannel(session.connection, spokenText, session.ttsVoice);
+          speakInChannel(session.connection, spokenText, session.ttsVoice);
         }
       } catch (error) {
         console.error('[Discord Bot] Error invoking agent:', error);
@@ -350,14 +350,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const opusStream = receiver.subscribe(userId, {
-          end: { behavior: EndBehaviorType.AfterSilence, duration: 1200 },
+          end: { behavior: EndBehaviorType.AfterSilence, duration: 3000 },
         });
 
         const { opus } = require('prism-media');
         const pcmStream = opusStream.pipe(new opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 }));
 
         pcmStream.on('data', (chunk: Buffer) => {
-          session.speechmatics.sendAudio(chunk);
+          // Downmix stereo int16 interleaved → mono
+          const mono = Buffer.allocUnsafe(chunk.length / 2);
+          for (let i = 0, j = 0; i < chunk.length; i += 4, j += 2) {
+            if (i + 3 >= chunk.length) break;
+            const l = chunk.readInt16LE(i);
+            const r = chunk.readInt16LE(i + 2);
+            mono.writeInt16LE((l + r) >> 1, j);
+          }
+          session.speechmatics.sendAudio(mono);
         });
 
         pcmStream.on('error', (err: Error) => {
@@ -441,7 +449,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (session?.connection && session.ttsEnabled) {
         const spokenText = extractSpokenText(response.data.response as string);
         if (spokenText) {
-          await speakInChannel(session.connection, spokenText, session.ttsVoice);
+          speakInChannel(session.connection, spokenText, session.ttsVoice);
         }
       }
     } catch (error) {
@@ -549,7 +557,7 @@ setInterval(async () => {
             // Speak the completed scorecard out loud in the channel hands-free!
             if (session.connection && session.ttsEnabled) {
               const speakText = `Deep analysis complete for ${dealName}. Score: ${res.score} out of 10. Recommendation: ${res.recommendation}. Summary: ${res.summary}`;
-              await speakInChannel(session.connection, speakText, session.ttsVoice);
+              speakInChannel(session.connection, speakText, session.ttsVoice);
             }
           } else {
             const failedJob = jobs.find((j: any) => j.status === 'FAILED');
