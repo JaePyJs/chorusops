@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, Events, Message, SlashCommandBuilder, REST, Routes, ChatInputCommandInteraction } from 'discord.js';
-import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, VoiceConnection } from '@discordjs/voice';
+import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, VoiceConnection, AudioPlayer } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { SpeechmaticsClient } from './speechmatics';
@@ -71,6 +71,8 @@ interface GuildSession {
   ttsEnabled: boolean;
   ttsVoice: string;
   pendingWorkflows?: Set<string>;
+  activeAudioPlayer?: AudioPlayer;
+  isUserSpeaking: Map<string, boolean>;
 }
 
 // Map of Guild ID → Active Session to support multi-guild isolation perfectly
@@ -270,6 +272,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const session = guildSessions.get(guildId);
       if (!session) return;
 
+      // Don't process transcripts while the user is actively speaking (Change 3)
+      const isAnyUserSpeaking = Array.from(session.isUserSpeaking.values()).some((val) => val === true);
+      if (isAnyUserSpeaking) {
+        console.log('[Discord Bot] User still speaking at flush time, skipping turn.');
+        return;
+      }
+
       try {
         const response = await axios.post(`${BACKEND_URL}/agent/invoke`, {
           conversationId: session.activeConversationId,
@@ -297,7 +306,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         // Speak agent response in voice channel (Kokoro TTS)
         const spokenText = extractSpokenText(agentText);
         if (spokenText && session.connection && session.ttsEnabled) {
-          speakInChannel(session.connection, spokenText, session.ttsVoice);
+          speakInChannel(session.connection, spokenText, session.ttsVoice, (player) => {
+            session.activeAudioPlayer = player;
+          });
         }
       } catch (error) {
         console.error('[Discord Bot] Error invoking agent:', error);
@@ -315,6 +326,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const activeUserStreams = new Set<string>();
     const userSpeakerMap = new Map<string, string>();
+    const isUserSpeaking = new Map<string, boolean>();
 
     guildSessions.set(guildId, {
       connection,
@@ -326,6 +338,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       speakerCounter: 1,
       ttsEnabled: true,
       ttsVoice: process.env.TTS_VOICE || 'af_heart',
+      isUserSpeaking,
     });
 
     connection.on(VoiceConnectionStatus.Ready, async () => {
@@ -337,6 +350,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
       receiver.speaking.on('start', (userId) => {
         const session = guildSessions.get(guildId);
         if (!session) return;
+
+        session.isUserSpeaking.set(userId, true);
+
+        // Barge-In / Interruption: If bot is playing audio and user starts speaking, stop the audio!
+        if (session.activeAudioPlayer) {
+          console.log(`[Discord Bot] User started speaking. Interrupting and stopping active TTS playback.`);
+          session.activeAudioPlayer.stop();
+          session.activeAudioPlayer = undefined;
+        }
 
         // Guard against duplicate overlapping audio stream subscriptions (BUG A)
         if (session.activeUserStreams.has(userId)) {
@@ -350,7 +372,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const opusStream = receiver.subscribe(userId, {
-          end: { behavior: EndBehaviorType.AfterSilence, duration: 3000 },
+          end: { behavior: EndBehaviorType.AfterSilence, duration: 3550 },
         });
 
         const { opus } = require('prism-media');
@@ -380,6 +402,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         opusStream.on('close', cleanup);
 
         console.log(`[Discord Bot] User ${userId} (${session.userSpeakerMap.get(userId)}) started speaking.`);
+      });
+
+      receiver.speaking.on('end', (userId) => {
+        const session = guildSessions.get(guildId);
+        if (session) {
+          session.isUserSpeaking.set(userId, false);
+        }
       });
     });
 
@@ -449,7 +478,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (session?.connection && session.ttsEnabled) {
         const spokenText = extractSpokenText(response.data.response as string);
         if (spokenText) {
-          speakInChannel(session.connection, spokenText, session.ttsVoice);
+          speakInChannel(session.connection, spokenText, session.ttsVoice, (player) => {
+            session.activeAudioPlayer = player;
+          });
         }
       }
     } catch (error) {
@@ -557,7 +588,9 @@ setInterval(async () => {
             // Speak the completed scorecard out loud in the channel hands-free!
             if (session.connection && session.ttsEnabled) {
               const speakText = `Deep analysis complete for ${dealName}. Score: ${res.score} out of 10. Recommendation: ${res.recommendation}. Summary: ${res.summary}`;
-              speakInChannel(session.connection, speakText, session.ttsVoice);
+              speakInChannel(session.connection, speakText, session.ttsVoice, (player) => {
+                session.activeAudioPlayer = player;
+              });
             }
           } else {
             const failedJob = jobs.find((j: any) => j.status === 'FAILED');

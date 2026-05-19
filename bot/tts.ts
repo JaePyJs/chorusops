@@ -5,6 +5,7 @@ import {
   StreamType,
   VoiceConnection,
   VoiceConnectionStatus,
+  AudioPlayer,
 } from '@discordjs/voice';
 import { Readable } from 'stream';
 import dotenv from 'dotenv';
@@ -56,7 +57,12 @@ async function fetchKokoroStream(text: string, voiceOverride?: string): Promise<
 }
 
 // play synthesized voice in voice channel
-export async function speakInChannel(connection: VoiceConnection, text: string, voiceOverride?: string): Promise<void> {
+export async function speakInChannel(
+  connection: VoiceConnection,
+  text: string,
+  voiceOverride?: string,
+  onPlayerCreated?: (player: AudioPlayer) => void
+): Promise<void> {
   if (!TTS_ENABLED) return;
   if (!text || text.trim().length === 0) return;
 
@@ -65,6 +71,10 @@ export async function speakInChannel(connection: VoiceConnection, text: string, 
     const stream = await fetchKokoroStream(text, voiceOverride);
     const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
     const player = createAudioPlayer();
+    
+    if (onPlayerCreated) {
+      onPlayerCreated(player);
+    }
     
     console.log('[TTS] Connection state:', connection.state.status);
     if (connection.state.status !== VoiceConnectionStatus.Ready) {

@@ -32,7 +32,7 @@ export class SpeechmaticsClient {
   private transcriptBuffer: string[] = [];
   private lastSpeaker = 'S1';
   private silenceTimer: NodeJS.Timeout | null = null;
-  private readonly SILENCE_TIMEOUT_MS = 2500; // 2.5s of silence = flush
+  private readonly SILENCE_TIMEOUT_MS = 3000; // 3.0s of silence = flush
 
   constructor(apiKey: string, onTranscript: (transcript: string, speaker: string) => void) {
     this.apiKey = apiKey;
