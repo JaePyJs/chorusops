@@ -67,7 +67,7 @@ Bot (voice):  "Strong signal. Running deep analysis now."
 Bot (voice):  "Analysis complete. Score: 7/10. Recommendation: Invest."
 ```
 
-**[▶ Watch the full demo video](https://youtu.be/dQw4w9WgXcQ)**
+![ChorusOps Discord Bot](discord.png)
 
 ![ChorusOps Dashboard](dashboard.png)
 
