@@ -6,8 +6,6 @@
   "scripts": {
     "start:backend": "ts-node backend/server.ts",
     "dev:backend": "nodemon backend/server.ts",
-    "start:worker": "ts-node worker/worker.ts",
-    "dev:worker": "nodemon worker/worker.ts",
     "start:bot": "ts-node bot/index.ts",
     "dev:bot": "nodemon bot/index.ts"
   },

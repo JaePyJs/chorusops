@@ -103,6 +103,32 @@ app.get('/agent/status/:workflow_id', (req: Request, res: Response) => {
   });
 });
 
+// --- History Endpoints for GPT-Style UI ---
+app.get('/api/conversations', (req: Request, res: Response) => {
+  const convs = Array.from(db.conversations.values())
+    .map(c => {
+      const history = db.getChatHistory(c.id);
+      return { c, history };
+    })
+    .filter(({ history }) => history.length > 0) // Only display deals with actual conversation history
+    .map(({ c, history }) => {
+      const firstMsg = history.find(m => m.role === 'user')?.parts[0]?.text || 'New Deal';
+      const title = firstMsg.slice(0, 35) + (firstMsg.length > 35 ? '...' : '');
+      return { id: c.id, title, createdAt: c.createdAt };
+    });
+  res.json(convs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+});
+
+app.get('/api/conversations/:id', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const history = db.getChatHistory(id);
+  // Find the most recent workflow for this conversation
+  const workflows = Array.from(db.workflows.values()).filter(w => w.conversationId === id);
+  const latestWorkflow = workflows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  
+  res.json({ history, workflowId: latestWorkflow?.id });
+});
+
 import { startWorker } from '../worker/worker';
 
 // --- Start Server and Worker ---

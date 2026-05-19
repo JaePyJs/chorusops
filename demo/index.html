@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ChorusOps — Dealflow Orchestrator Demo</title>
+  <title>ChorusOps — Dealflow Orchestrator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,16 +17,10 @@
       --accent-teal: #14b8a6;
       --text-main: #f3f4f6;
       --text-muted: #9ca3af;
-      --glow-glow: 0 0 20px rgba(59, 130, 246, 0.3);
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Outfit', sans-serif;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+    
     body {
       background: var(--bg-dark);
       background-image: 
@@ -34,410 +28,351 @@
         radial-gradient(at 90% 80%, rgba(59, 130, 246, 0.15) 0px, transparent 50%);
       color: var(--text-main);
       display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
+      height: 100vh;
       overflow: hidden;
     }
 
-    /* Ambient Cyber Gradients */
-    .cyber-bg {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
-      transform: translate(-50%, -50%);
-      z-index: 0;
-      pointer-events: none;
+    /* 3-Column Layout */
+    .app-container {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 10, 15, 0.4);
+      backdrop-filter: blur(20px);
     }
 
-    /* Main Container with Frosted Cyberglass Vibe */
-    .app-container {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 950px;
-      height: 90vh;
-      background: var(--panel-bg);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.05);
+    /* LEFT SIDEBAR: History */
+    .sidebar-left {
+      width: 280px;
+      background: rgba(15, 15, 25, 0.8);
+      border-right: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
-      overflow: hidden;
-    }
-
-    /* Glossy Header */
-    header {
-      padding: 20px 28px;
-      background: rgba(10, 10, 18, 0.4);
-      border-bottom: 1px solid var(--border-color);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      padding: 20px;
     }
 
     .brand-section {
-      display: flex;
-      align-items: center;
-      gap: 14px;
+      display: flex; align-items: center; gap: 12px; margin-bottom: 30px;
     }
-
     .brand-logo {
-      width: 32px;
-      height: 32px;
+      width: 36px; height: 36px;
       background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 1.1rem;
-      color: white;
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.2rem; color: white;
       box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
     }
+    .brand-title { font-size: 1.3rem; font-weight: 600; }
 
-    .brand-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      letter-spacing: -0.025em;
-      background: linear-gradient(to right, #ffffff, #d1d5db);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .new-deal-btn {
+      background: transparent;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      color: var(--text-main);
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      margin-bottom: 20px;
+      transition: all 0.2s;
+    }
+    .new-deal-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.4);
     }
 
-    .brand-subtitle {
-      font-size: 0.8rem;
+    .history-header {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 10px;
+    }
+
+    #history-list {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+    }
+    #history-list::-webkit-scrollbar { width: 4px; }
+    #history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+    .history-item {
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      font-size: 0.9rem;
       color: var(--text-muted);
-      border-left: 1px solid rgba(255, 255, 255, 0.15);
-      padding-left: 12px;
-      margin-left: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .history-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-main); }
+    .history-item.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-left: 3px solid var(--accent-blue);
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    /* CENTER: Main Chat */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    header {
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(10, 10, 18, 0.2);
     }
 
     .status-dot-container {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255, 255, 255, 0.03);
-      padding: 6px 12px;
-      border-radius: 9999px;
-      border: 1px solid var(--border-color);
-      font-size: 0.75rem;
-      color: var(--text-muted);
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255, 255, 255, 0.03); padding: 6px 12px;
+      border-radius: 9999px; border: 1px solid var(--border-color);
+      font-size: 0.75rem; color: var(--text-muted);
     }
-
     .status-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--accent-teal);
-      border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-teal);
+      width: 8px; height: 8px; background: var(--accent-teal);
+      border-radius: 50%; box-shadow: 0 0 8px var(--accent-teal);
       animation: pulse 2s infinite;
     }
-
     @keyframes pulse {
       0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.7); }
       70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(20, 184, 166, 0); }
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
     }
 
-    /* Chat Viewport */
     #chat {
-      flex: 1;
-      overflow-y: auto;
-      padding: 32px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      scroll-behavior: smooth;
+      flex: 1; overflow-y: auto; padding: 32px 10%;
+      display: flex; flex-direction: column; gap: 24px;
     }
+    #chat::-webkit-scrollbar { width: 6px; }
+    #chat::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; }
 
-    /* Custom Premium Scrollbar */
-    #chat::-webkit-scrollbar {
-      width: 6px;
-    }
-    #chat::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    #chat::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 9999px;
-    }
-    #chat::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-
-    /* Messages Styling with Fade Transitions */
     .msg {
-      max-width: 75%;
-      padding: 14px 18px;
-      border-radius: 16px;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      word-break: break-word;
-      animation: messageSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      opacity: 0;
-      transform: translateY(12px);
+      max-width: 85%; padding: 16px 20px; border-radius: 16px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-
-    @keyframes messageSlideIn {
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
     .msg.user {
       background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
       border: 1px solid rgba(139, 92, 246, 0.2);
-      align-self: flex-end;
-      border-bottom-right-radius: 4px;
-      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.05);
+      align-self: flex-end; border-bottom-right-radius: 4px;
     }
-
     .msg.agent {
-      background: rgba(30, 30, 46, 0.55);
-      border: 1px solid var(--border-color);
-      align-self: flex-start;
-      border-bottom-left-radius: 4px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      background: rgba(30, 30, 46, 0.55); border: 1px solid var(--border-color);
+      align-self: flex-start; border-bottom-left-radius: 4px;
     }
-
     .msg.system {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px dashed rgba(255, 255, 255, 0.08);
-      color: var(--text-muted);
-      align-self: center;
-      font-size: 0.85rem;
-      border-radius: 12px;
-      max-width: 90%;
-      text-align: center;
+      background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.08);
+      color: var(--text-muted); align-self: center; font-size: 0.85rem; border-radius: 12px; text-align: center;
     }
+    .msg.error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: #f87171; align-self: flex-start; }
 
-    .msg.error {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.25);
-      color: #f87171;
-      align-self: flex-start;
-      border-bottom-left-radius: 4px;
+    .input-section {
+      padding: 24px 10%; background: rgba(10, 10, 18, 0.4); border-top: 1px solid var(--border-color);
     }
-
-    /* Premium Status Dashboard Card */
-    #status-card {
-      margin: 0 32px 16px;
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      border-radius: 16px;
-      padding: 18px 24px;
-      font-size: 0.9rem;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 0 20px rgba(59, 130, 246, 0.05);
-      display: none;
-      animation: statusSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    #input-row { display: flex; gap: 12px; }
+    #input {
+      flex: 1; background: rgba(15, 15, 26, 0.8); border: 1px solid var(--border-color);
+      border-radius: 14px; padding: 16px 20px; color: var(--text-main); font-size: 1rem; outline: none; transition: border-color 0.2s;
     }
-
-    @keyframes statusSlideUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
+    #input:focus { border-color: rgba(59, 130, 246, 0.5); }
+    #send-btn {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      border: none; border-radius: 14px; padding: 0 32px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.1s;
     }
+    #send-btn:hover { transform: translateY(-1px); }
+    #send-btn:disabled { background: #1f1f2e; color: #4b5563; cursor: not-allowed; transform: none; }
 
-    .status-header-row {
+    /* RIGHT SIDEBAR: Pipeline Dashboard */
+    .sidebar-right {
+      width: 380px;
+      background: rgba(15, 15, 25, 0.95);
+      border-left: 1px solid var(--border-color);
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      padding-bottom: 8px;
+      flex-direction: column;
+      padding: 24px;
+      box-shadow: -10px 0 30px rgba(0,0,0,0.2);
     }
 
-    .status-title {
-      font-weight: 600;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .pipeline-header {
+      font-size: 1.1rem; font-weight: 600; margin-bottom: 24px; display: flex; align-items: center; gap: 10px;
+      padding-bottom: 16px; border-bottom: 1px solid var(--border-color);
     }
 
     .status-badge {
-      font-size: 0.75rem;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      color: var(--accent-blue);
-      padding: 3px 10px;
-      border-radius: 9999px;
-      font-weight: 500;
+      font-size: 0.7rem; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--accent-blue); padding: 4px 10px; border-radius: 9999px; font-weight: 600; letter-spacing: 0.05em;
     }
 
     #status-content {
+      flex: 1;
+      overflow-y: auto;
       white-space: pre-wrap;
       color: #d1d5db;
       font-size: 0.85rem;
       line-height: 1.6;
     }
+    #status-content::-webkit-scrollbar { width: 4px; }
+    #status-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 9999px; }
 
-    /* Input Controls Section */
-    .input-section {
-      border-top: 1px solid var(--border-color);
-      padding: 20px 32px;
-      background: rgba(10, 10, 18, 0.3);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+    .empty-state {
+      color: var(--text-muted); text-align: center; margin-top: 40px; font-style: italic; font-size: 0.9rem;
     }
 
-    #input-row {
-      display: flex;
-      gap: 12px;
+    .job-card {
+      background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px; padding: 16px; margin-top: 16px;
     }
-
-    #input {
-      flex: 1;
-      background: rgba(15, 15, 26, 0.8);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 14px 18px;
-      color: var(--text-main);
-      font-size: 0.95rem;
-      outline: none;
-      transition: all 0.25s ease;
-    }
-
-    #input:focus {
-      border-color: rgba(59, 130, 246, 0.5);
-      box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
-      background: rgba(15, 15, 26, 0.95);
-    }
-
-    #send-btn {
-      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-      border: none;
-      border-radius: 12px;
-      padding: 14px 28px;
-      color: white;
-      font-weight: 600;
-      font-size: 0.95rem;
-      cursor: pointer;
-      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.25);
-      transition: all 0.25s ease;
-    }
-
-    #send-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
-    }
-
-    #send-btn:active {
-      transform: translateY(1px);
-    }
-
-    #send-btn:disabled {
-      background: #1f1f2e;
-      color: #4b5563;
-      box-shadow: none;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .footer-metadata {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      padding: 0 4px;
-    }
-
-    #workflow-id {
-      font-family: monospace;
-      color: var(--accent-purple);
-      text-shadow: 0 0 8px rgba(139, 92, 246, 0.2);
-    }
+    .job-title { font-weight: 600; margin-bottom: 8px; color: white; }
+    .job-prop { color: var(--text-muted); margin-top: 8px; }
+    .job-val { color: var(--text-main); display: block; margin-top: 2px; }
   </style>
 </head>
 <body>
 
-<div class="cyber-bg"></div>
-
 <div class="app-container">
-  <header>
+  
+  <!-- Left Sidebar (History) -->
+  <aside class="sidebar-left">
     <div class="brand-section">
       <div class="brand-logo">C</div>
-      <div>
-        <span class="brand-title">ChorusOps</span>
-        <span class="brand-subtitle">Dealflow Orchestrator Text Demo</span>
+      <div class="brand-title">ChorusOps</div>
+    </div>
+    
+    <button class="new-deal-btn" onclick="startNewDeal()">+ New Deal</button>
+    <div class="history-header">Recent Deals</div>
+    <div id="history-list"></div>
+  </aside>
+
+  <!-- Center (Main Chat) -->
+  <main class="chat-main">
+    <header>
+      <div style="font-weight: 500; color: var(--text-muted);">Current Deal Context: <span id="session-key" style="color: var(--text-main);"></span></div>
+      <div class="status-dot-container">
+        <div class="status-dot" id="online-dot"></div>
+        <span id="online-text">Connecting...</span>
+      </div>
+    </header>
+
+    <div id="chat">
+      <div class="msg system">
+        <strong>Interactive System Walkthrough</strong><br/>
+        Describe a deal or startup to get started. E.g., <em>"Let's look at Acme Robotics. They build heavy-lift drones."</em><br/>
+        Then, direct the Gemini planner to evaluate: <em>"Run a deep analysis on Acme Robotics."</em>
       </div>
     </div>
-    <div class="status-dot-container">
-      <div class="status-dot"></div>
-      <span>Orchestrator Online</span>
-    </div>
-  </header>
 
-  <div id="chat">
-    <div class="msg system">
-      <strong>Interactive System Walkthrough</strong><br/>
-      Describe a deal or startup to get started. E.g., <em>"Let's look at Acme Robotics. They build heavy-lift drones."</em><br/>
-      Then, direct the Gemini planner to evaluate: <em>"Run a deep analysis on Acme Robotics."</em>
+    <div class="input-section">
+      <div id="input-row">
+        <input id="input" type="text" placeholder="Message the central orchestrator..." autocomplete="off" autofocus />
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
     </div>
-  </div>
+  </main>
 
-  <div id="status-card">
-    <div class="status-header-row">
-      <div class="status-title">Background Dealflow Analysis</div>
-      <div id="status-badge" class="status-badge">ACTIVE</div>
+  <!-- Right Sidebar (Pipeline Dashboard) -->
+  <aside class="sidebar-right">
+    <div class="pipeline-header">
+      Dealflow Pipeline
+      <span id="status-badge" class="status-badge" style="display:none;">IDLE</span>
     </div>
-    <div id="status-content">Loading enqueued tasks...</div>
-  </div>
+    <div id="status-content">
+      <div class="empty-state">No active analysis pipeline running. Start discussing a deal to populate.</div>
+    </div>
+  </aside>
 
-  <div class="input-section">
-    <div id="input-row">
-      <input id="input" type="text" placeholder="Prompt the central dealflow planner..." autocomplete="off" autofocus />
-      <button id="send-btn" onclick="sendMessage()">Send</button>
-    </div>
-    <div class="footer-metadata">
-      <span>Session Key: <span id="session-key">demo-session</span></span>
-      <span id="workflow-id"></span>
-    </div>
-  </div>
 </div>
+
 <script>
   const params = new URLSearchParams(window.location.search);
   const BACKEND = params.get('backend') || 'http://localhost:3000';
-  let conversationId = 'demo-' + Math.random().toString(36).slice(2, 9);
+  let conversationId = 'deal-' + Math.random().toString(36).slice(2, 9);
   let activeWorkflowId = null;
   let statusPollInterval = null;
-
-  // Real-time connection health checker
-  async function checkHealth() {
-    try {
-      const res = await fetch(`${BACKEND}/health`);
-      if (res.ok) {
-        document.querySelector('.status-dot').style.background = 'var(--accent-teal)';
-        document.querySelector('.status-dot').style.boxShadow = '0 0 8px var(--accent-teal)';
-        document.querySelector('.status-dot-container span').textContent = 'Orchestrator Online';
-      } else {
-        throw new Error('Not OK');
-      }
-    } catch (err) {
-      document.querySelector('.status-dot').style.background = '#ef4444';
-      document.querySelector('.status-dot').style.boxShadow = '0 0 8px #ef4444';
-      document.querySelector('.status-dot-container span').textContent = 'Backend Offline';
-    }
-  }
-  checkHealth();
-  setInterval(checkHealth, 30000); // recheck every 30s
 
   document.getElementById('session-key').textContent = conversationId;
 
   const chat = document.getElementById('chat');
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('send-btn');
-  const workflowLabel = document.getElementById('workflow-id');
-  const statusCard = document.getElementById('status-card');
   const statusBadge = document.getElementById('status-badge');
   const statusContent = document.getElementById('status-content');
+  const historyList = document.getElementById('history-list');
+
+  // Load history list on boot
+  async function loadHistoryList() {
+    try {
+      const res = await fetch(`${BACKEND}/api/conversations`);
+      if (!res.ok) return;
+      const convs = await res.json();
+      historyList.innerHTML = '';
+      convs.forEach(c => {
+        const div = document.createElement('div');
+        div.className = `history-item ${c.id === conversationId ? 'active' : ''}`;
+        div.textContent = c.title;
+        div.onclick = () => loadConversation(c.id);
+        historyList.appendChild(div);
+      });
+    } catch (e) {
+      console.log('Backend not ready yet for history.');
+    }
+  }
+
+  function startNewDeal() {
+    conversationId = 'deal-' + Math.random().toString(36).slice(2, 9);
+    activeWorkflowId = null;
+    document.getElementById('session-key').textContent = conversationId;
+    chat.innerHTML = `<div class="msg system">New deal workspace created.</div>`;
+    statusContent.innerHTML = `<div class="empty-state">No active analysis pipeline running.</div>`;
+    statusBadge.style.display = 'none';
+    loadHistoryList();
+  }
+
+  async function loadConversation(id) {
+    conversationId = id;
+    document.getElementById('session-key').textContent = conversationId;
+    chat.innerHTML = '';
+    activeWorkflowId = null;
+    if (statusPollInterval) clearInterval(statusPollInterval);
+
+    try {
+      const res = await fetch(`${BACKEND}/api/conversations/${id}`);
+      const data = await res.json();
+      data.history.forEach(m => {
+        addMessage(m.parts[0].text, m.role === 'model' ? 'agent' : 'user');
+      });
+      if (data.workflowId) {
+        activeWorkflowId = data.workflowId;
+        startStatusPolling();
+      } else {
+        statusContent.innerHTML = `<div class="empty-state">No active analysis pipeline.</div>`;
+        statusBadge.style.display = 'none';
+      }
+    } catch (e) {
+      addMessage('Failed to load history.', 'error');
+    }
+    loadHistoryList();
+  }
+
+  // Real-time connection health checker
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${BACKEND}/health`);
+      if (res.ok) {
+        document.getElementById('online-dot').style.background = 'var(--accent-teal)';
+        document.getElementById('online-dot').style.boxShadow = '0 0 8px var(--accent-teal)';
+        document.getElementById('online-text').textContent = 'Orchestrator Online';
+        // Auto load history once connected if empty
+        if (historyList.children.length === 0) loadHistoryList();
+      }
+    } catch (err) {
+      document.getElementById('online-dot').style.background = '#ef4444';
+      document.getElementById('online-dot').style.boxShadow = '0 0 8px #ef4444';
+      document.getElementById('online-text').textContent = 'Backend Offline';
+    }
+  }
+  checkHealth();
+  setInterval(checkHealth, 5000);
 
   input.addEventListener('keydown', e => { 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -469,32 +404,22 @@
       const res = await fetch(`${BACKEND}/agent/invoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationId,
-          text,
-          speakerId: 'demo-user',
-          type: 'text'
-        })
+        body: JSON.stringify({ conversationId, text, type: 'text' })
       });
 
       const data = await res.json();
       thinking.textContent = data.response;
 
-      // Capture workflow ID for status polling
-      if (data.workflowId) {
-        activeWorkflowId = data.workflowId;
-        workflowLabel.textContent = `WORKFLOW ID: ${activeWorkflowId.slice(0, 8)}...`;
-      }
+      if (data.workflowId) activeWorkflowId = data.workflowId;
 
-      // If a job was enqueued, start polling status
-      if (data.enqueuedJobIds?.length > 0) {
-        addMessage(`[System] Asynchronous analytical worker enqueued. Status card initialized below.`, 'system');
+      if (data.enqueuedJobIds?.length > 0 || data.workflowId) {
         startStatusPolling();
       }
+      loadHistoryList(); // refresh sidebar
 
     } catch (err) {
       thinking.className = 'msg error';
-      thinking.textContent = `Error calling backend: ${err.message}. Please verify the backend server is running locally at ${BACKEND}.`;
+      thinking.textContent = `Error: ${err.message}. Backend offline.`;
     }
 
     sendBtn.disabled = false;
@@ -504,13 +429,10 @@
 
   function startStatusPolling() {
     if (statusPollInterval) clearInterval(statusPollInterval);
-    statusCard.style.display = 'block';
+    statusBadge.style.display = 'inline-block';
     statusBadge.textContent = 'POLLING';
     statusBadge.style.borderColor = 'rgba(59, 130, 246, 0.4)';
     statusBadge.style.color = '#3b82f6';
-    
-    // Clear stale status content to avoid flash of old data
-    statusContent.textContent = 'Loading enqueued tasks...';
     
     pollStatus();
     statusPollInterval = setInterval(async () => {
@@ -521,9 +443,8 @@
         statusBadge.textContent = 'SETTLED';
         statusBadge.style.borderColor = 'rgba(20, 184, 166, 0.4)';
         statusBadge.style.color = '#14b8a6';
-        addMessage('[System] Asynchronous analysis finished. Results are fully populated inside the dashboard panel.', 'system');
       }
-    }, 5000);
+    }, 3000);
   }
 
   async function pollStatus() {
@@ -533,31 +454,41 @@
       const { workflow, jobs } = await res.json();
 
       const stageLabels = { 
-        initial: 'Initial Discovery', 
-        gathering: 'Information Gathering', 
-        analysis_queued: 'Analysis Queued', 
-        analysis_done: 'Analysis Completed', 
+        initial: 'Initial Discovery', gathering: 'Information Gathering', 
+        analysis_queued: 'Analysis Queued', analysis_done: 'Analysis Completed', 
         decision: 'Investment Decision' 
       };
-      const label = stageLabels[workflow.state?.stage] || 'Active';
-
-      let text = `Stage: ${label} | Pipeline Status: ${workflow.status}\n`;
-      for (const j of jobs) {
-        text += `\n• ${j.type.toUpperCase()}: ${j.status}`;
-        if (j.status === 'COMPLETED' && j.result) {
-          const r = j.result;
-          text += ` [SUCCESS]\n  Score: ${r.score}/10 | ${r.recommendation}\n  Summary: ${r.summary}\n  Pros: ${r.pros?.join(', ') || 'None'}\n  Cons: ${r.cons?.join(', ') || 'None'}`;
-        } else if (j.status === 'FAILED') {
-          text += ` [FAILED]\n  Error: ${j.error}`;
-        }
+      
+      let html = `<div style="color: var(--text-main); font-weight: 500; margin-bottom: 16px;">Stage: <span style="color: var(--accent-purple);">${stageLabels[workflow.state?.stage] || 'Active'}</span></div>`;
+      
+      // Render workflow state memory nicely
+      if (workflow.state) {
+        if (workflow.state.dealName) html += `<div class="job-prop">Deal Name: <span class="job-val">${workflow.state.dealName}</span></div>`;
+        if (workflow.state.ask) html += `<div class="job-prop">Ask: <span class="job-val">${workflow.state.ask}</span></div>`;
       }
 
-      statusContent.textContent = text;
+      for (const j of jobs) {
+        html += `<div class="job-card">`;
+        html += `<div class="job-title">${j.type.toUpperCase()} <span class="status-badge" style="float: right;">${j.status}</span></div>`;
+        
+        if (j.status === 'COMPLETED' && j.result) {
+          const r = j.result;
+          html += `<div class="job-prop">Score: <strong style="color: ${r.score >= 7 ? 'var(--accent-teal)' : '#f87171'}">${r.score}/10</strong></div>`;
+          html += `<div class="job-prop">Recommendation: <span class="job-val">${r.recommendation}</span></div>`;
+          html += `<div class="job-prop">Summary: <span class="job-val">${r.summary}</span></div>`;
+          if (r.pros?.length) html += `<div class="job-prop">Pros:<ul style="margin-top: 4px; padding-left: 20px; color: var(--text-main);"><li>${r.pros.join('</li><li>')}</li></ul></div>`;
+          if (r.cons?.length) html += `<div class="job-prop">Cons:<ul style="margin-top: 4px; padding-left: 20px; color: var(--text-main);"><li>${r.cons.join('</li><li>')}</li></ul></div>`;
+        } else if (j.status === 'FAILED') {
+          html += `<div class="job-prop" style="color: #f87171">Error: <span class="job-val" style="color: #fca5a5">${j.error}</span></div>`;
+        } else {
+          html += `<div class="job-prop">Worker is crunching data...</div>`;
+        }
+        html += `</div>`;
+      }
 
-      // Stop polling when all jobs are settled
+      statusContent.innerHTML = html;
       return jobs.length > 0 && jobs.every(j => j.status === 'COMPLETED' || j.status === 'FAILED');
     } catch (err) {
-      statusContent.textContent = 'Could not establish connection with analytical backend status API.';
       return false;
     }
   }

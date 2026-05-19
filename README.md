@@ -64,7 +64,7 @@ SPEECHMATICS_API_KEY=your_speechmatics_key
 # Asynchronous Worker (Featherless.ai)
 FEATHERLESS_API_KEY=your_featherless_key
 FEATHERLESS_BASE_URL=https://api.featherless.ai/v1
-FEATHERLESS_MODEL=deepseek-ai/DeepSeek-V4-Flash
+FEATHERLESS_MODEL=meta-llama/Llama-3-70b-instruct
 
 # Voice Client (Discord Developer Portal)
 DISCORD_BOT_TOKEN=your_discord_token
@@ -100,18 +100,13 @@ npm install
 ---
 
 ### 4. Launch the Systems
-For a complete local demo, you need to spin up the Backend API, the Asynchronous Worker, and the Discord Bot Client.
+For a complete local demo, you only need to spin up the Backend API Core and the Discord Bot Client in separate terminals.
 
-*Note: For simpler local runs, starting the backend will automatically spin up the background worker polling listener.*
+*Note: The Backend Core automatically runs the embedded Asynchronous Analytical Worker internally to maintain fast in-memory database transaction speeds for this hackathon setup.*
 
-**Terminal 1 (Backend API & Worker):**
+**Terminal 1 (Backend API Core & Worker):**
 ```bash
 npm run start:backend
-```
-
-*(Optional: If running the worker in its own dedicated process during scale testing)*:
-```bash
-npm run start:worker
 ```
 
 **Terminal 2 (Discord Bot Client):**
