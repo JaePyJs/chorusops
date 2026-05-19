@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 export interface Conversation {
   id: string;
   channelId?: string;
@@ -42,6 +45,68 @@ class InMemoryStore {
   // This store is entirely transient (in RAM) and does NOT persist across process restarts.
   public chatHistories: Map<string, ChatMessage[]> = new Map();
 
+  private storePath = path.join(__dirname, '..', 'data', 'store.json');
+
+  constructor() {
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk() {
+    try {
+      if (!fs.existsSync(this.storePath)) return;
+      const dataStr = fs.readFileSync(this.storePath, 'utf-8');
+      const parsed = JSON.parse(dataStr);
+      
+      if (parsed.conversations) {
+        const list = parsed.conversations.map(([k, v]: [string, any]) => {
+          v.createdAt = new Date(v.createdAt);
+          return [k, v];
+        });
+        this.conversations = new Map(list);
+      }
+      if (parsed.workflows) {
+        const list = parsed.workflows.map(([k, v]: [string, any]) => {
+          v.createdAt = new Date(v.createdAt);
+          v.updatedAt = new Date(v.updatedAt);
+          return [k, v];
+        });
+        this.workflows = new Map(list);
+      }
+      if (parsed.jobs) {
+        const list = parsed.jobs.map(([k, v]: [string, any]) => {
+          v.createdAt = new Date(v.createdAt);
+          v.updatedAt = new Date(v.updatedAt);
+          return [k, v];
+        });
+        this.jobs = new Map(list);
+      }
+      if (parsed.chatHistories) {
+        this.chatHistories = new Map(parsed.chatHistories);
+      }
+      console.log(`[Database] Loaded state successfully from disk (${this.storePath})`);
+    } catch (e) {
+      console.error('[Database] Failed to load state from disk:', e);
+    }
+  }
+
+  private saveToDisk() {
+    try {
+      const dataDir = path.dirname(this.storePath);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      const payload = {
+        conversations: Array.from(this.conversations.entries()),
+        workflows: Array.from(this.workflows.entries()),
+        jobs: Array.from(this.jobs.entries()),
+        chatHistories: Array.from(this.chatHistories.entries()),
+      };
+      fs.writeFileSync(this.storePath, JSON.stringify(payload, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('[Database] Failed to save state to disk:', e);
+    }
+  }
+
   getChatHistory(conversationId: string): ChatMessage[] {
     return this.chatHistories.get(conversationId) ?? [];
   }
@@ -50,11 +115,13 @@ class InMemoryStore {
     const history = this.getChatHistory(conversationId);
     history.push(message);
     this.chatHistories.set(conversationId, history);
+    this.saveToDisk();
   }
 
   createConversation(id: string, participants: string[], channelId?: string): Conversation {
     const conv: Conversation = { id, participants, channelId, createdAt: new Date() };
     this.conversations.set(id, conv);
+    this.saveToDisk();
     return conv;
   }
 
@@ -69,6 +136,7 @@ class InMemoryStore {
       updatedAt: new Date()
     };
     this.workflows.set(id, wf);
+    this.saveToDisk();
     return wf;
   }
 
@@ -77,6 +145,7 @@ class InMemoryStore {
     if (!wf) return undefined;
     wf.state = { ...wf.state, ...stateDelta };
     wf.updatedAt = new Date();
+    this.saveToDisk();
     return wf;
   }
 
@@ -85,6 +154,7 @@ class InMemoryStore {
     if (!wf) return undefined;
     wf.status = status;
     wf.updatedAt = new Date();
+    this.saveToDisk();
     return wf;
   }
 
@@ -99,6 +169,7 @@ class InMemoryStore {
       updatedAt: new Date()
     };
     this.jobs.set(id, job);
+    this.saveToDisk();
     return job;
   }
 
@@ -109,6 +180,7 @@ class InMemoryStore {
     if (result !== undefined) job.result = result;
     if (error !== undefined) job.error = error;
     job.updatedAt = new Date();
+    this.saveToDisk();
     return job;
   }
 }

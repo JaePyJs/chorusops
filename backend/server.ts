@@ -42,7 +42,7 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
     let conversation = db.conversations.get(conversationId);
     if (!conversation) {
       // Create a default conversation if none exists
-      conversation = db.createConversation(conversationId, [speakerId || 'user']);
+      conversation = db.createConversation(conversationId, [speakerId || 'user'], conversationId);
       console.log(`[Backend] Created new conversation: ${conversationId}`);
     }
 
@@ -117,7 +117,9 @@ app.get('/api/conversations', (req: Request, res: Response) => {
     .filter(({ history }) => history.length > 0) // Only display deals with actual conversation history
     .map(({ c, history }) => {
       const firstMsg = history.find(m => m.role === 'user')?.parts[0]?.text || 'New Deal';
-      const title = firstMsg.slice(0, 35) + (firstMsg.length > 35 ? '...' : '');
+      const isDiscord = c.id.startsWith('discord-');
+      const prefix = isDiscord ? '[Discord] ' : '';
+      const title = prefix + firstMsg.slice(0, 35) + (firstMsg.length > 35 ? '...' : '');
       return { id: c.id, title, createdAt: c.createdAt };
     });
   res.json(convs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));

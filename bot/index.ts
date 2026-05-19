@@ -238,7 +238,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     guildSessions.set(guildId, {
       connection,
       speechmatics: sessionSpeechmatics,
-      activeConversationId: interaction.channelId,
+      activeConversationId: `discord-${guildId}-${channel.id}`,
       activeTextChannel: interaction.channel as SendableChannel,
       activeUserStreams,
       userSpeakerMap,
@@ -332,7 +332,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
       const response = await axios.post(`${BACKEND_URL}/agent/invoke`, {
-        conversationId: interaction.channelId,
+        conversationId: `discord-${guildId}-${interaction.channelId}`,
         text,
         speakerId: interaction.user.username,
         type: 'text'
