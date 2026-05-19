@@ -31,6 +31,8 @@ export class SpeechmaticsClient {
   // rather than triggering LLM invocations prematurely on partial sentences.
   private transcriptBuffer: string[] = [];
   private lastSpeaker = 'S1';
+  private silenceTimer: NodeJS.Timeout | null = null;
+  private readonly SILENCE_TIMEOUT_MS = 1200; // 1.2s of silence = flush
 
   constructor(apiKey: string, onTranscript: (transcript: string, speaker: string) => void) {
     this.apiKey = apiKey;
@@ -63,6 +65,7 @@ export class SpeechmaticsClient {
           type: 'raw',
           encoding: 'pcm_s16le',
           sample_rate: 48000,
+          channel_count: 2,
         },
         transcription_config: {
           language: 'en',
@@ -108,6 +111,15 @@ export class SpeechmaticsClient {
           console.log(`[Speechmatics] Segment [${speaker}]: ${transcript.trim()}`);
           this.transcriptBuffer.push(transcript.trim());
           this.lastSpeaker = speaker;
+
+          // Reset silence timer on every new segment
+          if (this.silenceTimer) {
+            clearTimeout(this.silenceTimer);
+          }
+          this.silenceTimer = setTimeout(() => {
+            console.log(`[Speechmatics] Silence timer triggered flush after ${this.SILENCE_TIMEOUT_MS}ms of segment inactivity.`);
+            this.flushBuffer();
+          }, this.SILENCE_TIMEOUT_MS);
 
           break;
         }
@@ -159,12 +171,12 @@ export class SpeechmaticsClient {
     });
   }
 
-  forceFlush() {
-    console.log(`[Speechmatics] Force flushing buffer...`);
-    this.flushBuffer();
-  }
 
   private flushBuffer() {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
     if (this.transcriptBuffer.length > 0) {
       const fullTurn = this.transcriptBuffer.join(' ');
       this.transcriptBuffer = [];
@@ -180,6 +192,10 @@ export class SpeechmaticsClient {
   }
 
   close() {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       // Send EndOfStream so the server flushes any buffered audio before closing
       this.ws.send(JSON.stringify({ message: 'EndOfStream', last_seq_no: 0 }));

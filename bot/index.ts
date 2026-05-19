@@ -354,7 +354,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
 
         const { opus } = require('prism-media');
-        const pcmStream = opusStream.pipe(new opus.Decoder({ rate: 48000, channels: 1, frameSize: 960 }));
+        const pcmStream = opusStream.pipe(new opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 }));
 
         pcmStream.on('data', (chunk: Buffer) => {
           session.speechmatics.sendAudio(chunk);
@@ -367,8 +367,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const cleanup = () => {
           session.activeUserStreams.delete(userId);
           console.log(`[Discord Bot] Finished streaming audio for user ${userId}.`);
-          // Force flush any buffered Speechmatics segments immediately now that speaking has ended
-          session.speechmatics.forceFlush();
         };
         opusStream.on('end', cleanup);
         opusStream.on('close', cleanup);
