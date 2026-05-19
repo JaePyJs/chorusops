@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: chorusops-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npx ts-node backend/server.ts
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production

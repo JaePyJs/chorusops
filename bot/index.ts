@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import { SpeechmaticsClient } from './speechmatics';
 import { Job } from '../backend/db';
+import { speakInChannel, extractSpokenText } from './tts';
 // prism-media is required inline (CJS) to access the opus decoder at runtime.
 
 const commands = [
@@ -211,6 +212,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await sendLongMessage(session.activeTextChannel, replyText);
         console.log(`[Discord Bot] Posted agent response to channel.`);
+
+        // Speak agent response in voice channel (Kokoro TTS)
+        const spokenText = extractSpokenText(agentText);
+        if (spokenText && session.connection) {
+          await speakInChannel(session.connection, spokenText);
+        }
       } catch (error) {
         console.error('[Discord Bot] Error invoking agent:', error);
       }
@@ -339,6 +346,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       
       await sendLongMessage(interaction, reply, true);
+
+      // Speak in voice channel if bot is currently in one for this guild
+      const session = guildSessions.get(guildId);
+      if (session?.connection) {
+        const spokenText = extractSpokenText(response.data.response as string);
+        if (spokenText) {
+          await speakInChannel(session.connection, spokenText);
+        }
+      }
     } catch (error) {
       console.error(error);
       await interaction.editReply('Error talking to the agent backend.');
