@@ -1,10 +1,24 @@
-import { Client, GatewayIntentBits, Events, Message } from 'discord.js';
+import { Client, GatewayIntentBits, Events, Message, SlashCommandBuilder, REST, Routes, ChatInputCommandInteraction } from 'discord.js';
 import { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, VoiceConnection } from '@discordjs/voice';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { SpeechmaticsClient } from './speechmatics';
 import { Job } from '../backend/db';
 // prism-media is required inline (CJS) to access the opus decoder at runtime.
+
+const commands = [
+  new SlashCommandBuilder().setName('help').setDescription('Displays the Dealflow Orchestrator guide'),
+  new SlashCommandBuilder().setName('join').setDescription('Invites the bot to your current voice channel'),
+  new SlashCommandBuilder().setName('leave').setDescription('Orders the bot to disconnect from the voice channel'),
+  new SlashCommandBuilder()
+    .setName('say')
+    .setDescription('Interacts with the central Gemini orchestrator via text')
+    .addStringOption(option => option.setName('text').setDescription('The text to say').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('status')
+    .setDescription('Shows workflow stage, job status, and analysis results')
+    .addStringOption(option => option.setName('workflow_id').setDescription('The ID of the workflow to check').setRequired(true))
+].map(command => command.toJSON());
 
 dotenv.config();
 
@@ -37,18 +51,37 @@ interface GuildSession {
 const guildSessions = new Map<string, GuildSession>();
 
 // Helper to safely split and send messages that exceed Discord's 2000-character limit (BUG B & BUG C)
-async function sendLongMessage(target: Message | SendableChannel, text: string, useReply = false) {
+async function sendLongMessage(target: Message | ChatInputCommandInteraction | SendableChannel, text: string, useReply = false) {
   const maxLength = 1900;
-  if (text.length <= maxLength) {
-    if (target instanceof Message) {
-      if (useReply) {
-        await target.reply(text);
-      } else {
-        await (target.channel as SendableChannel).send(text);
+  
+  const sendFirst = async (content: string) => {
+    if (useReply && 'reply' in target) {
+      if ('deferred' in target) { // Interaction
+        if ((target as ChatInputCommandInteraction).deferred || (target as ChatInputCommandInteraction).replied) {
+          await (target as ChatInputCommandInteraction).followUp(content);
+        } else {
+          await (target as ChatInputCommandInteraction).reply(content);
+        }
+      } else { // Message
+        await (target as Message).reply(content);
       }
-    } else {
-      await target.send(text);
+    } else if ('channel' in target && target.channel) {
+      await (target.channel as SendableChannel).send(content);
+    } else if ('send' in target) {
+      await (target as SendableChannel).send(content);
     }
+  };
+
+  const sendNext = async (content: string) => {
+    if ('channel' in target && target.channel) {
+      await (target.channel as SendableChannel).send(content);
+    } else if ('send' in target) {
+      await (target as SendableChannel).send(content);
+    }
+  };
+
+  if (text.length <= maxLength) {
+    await sendFirst(text);
     return;
   }
 
@@ -80,54 +113,71 @@ async function sendLongMessage(target: Message | SendableChannel, text: string, 
   }
 
   for (let i = 0; i < chunks.length; i++) {
-    if (i === 0 && target instanceof Message && useReply) {
-      await target.reply(chunks[i]);
+    if (i === 0) {
+      await sendFirst(chunks[i]);
     } else {
-      if (target instanceof Message) {
-        await (target.channel as SendableChannel).send(chunks[i]);
-      } else {
-        await target.send(chunks[i]);
-      }
+      await sendNext(chunks[i]);
     }
   }
 }
 
-client.once(Events.ClientReady, c => {
+client.once(Events.ClientReady, async c => {
   console.log(`[Discord Bot] Ready! Logged in as ${c.user.tag}`);
+  try {
+    if (process.env.DISCORD_BOT_TOKEN) {
+      const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+      console.log('[Discord Bot] Started refreshing application (/) commands.');
+      for (const guild of c.guilds.cache.values()) {
+        await rest.put(Routes.applicationGuildCommands(c.user.id, guild.id), { body: commands });
+      }
+      console.log('[Discord Bot] Successfully reloaded application (/) commands.');
+    }
+  } catch (error) {
+    console.error('[Discord Bot] Failed to register slash commands:', error);
+  }
 });
 
-client.on(Events.MessageCreate, async (message: Message) => {
-  if (message.author.bot) return;
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
 
-  const guildId = message.guildId;
-  if (!guildId) return; // Only process guild commands
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: 'Commands can only be used in a server.', ephemeral: true });
+    return;
+  }
+
+  const commandName = interaction.commandName;
 
   // Help command
-  if (message.content.trim() === '!help') {
-    await sendLongMessage(message, [
+  if (commandName === 'help') {
+    await sendLongMessage(interaction, [
       `**Dealflow Orchestrator — Interface Command Guide**`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      `• \`!help\` — Displays this guide.`,
-      `• \`!agent join\` — Invites the bot to your current voice channel to start listening.`,
-      `• \`!agent say <text>\` — Interacts with the central Gemini orchestrator via text.`,
-      `• \`!status <workflow_id>\` — Shows workflow stage, job status, and analysis results.`,
-      `• \`!agent leave\` — Orders the bot to disconnect from the voice channel and reset context.`,
+      `• \`/help\` — Displays this guide.`,
+      `• \`/join\` — Invites the bot to your current voice channel to start listening.`,
+      `• \`/say <text>\` — Interacts with the central Gemini orchestrator via text.`,
+      `• \`/status <workflow_id>\` — Shows workflow stage, job status, and analysis results.`,
+      `• \`/leave\` — Orders the bot to disconnect from the voice channel and reset context.`,
     ].join('\n'), true);
     return;
   }
 
   // Join Voice Channel command
-  if (message.content.startsWith('!agent join')) {
-    const channel = message.member?.voice.channel;
+  if (commandName === 'join') {
+    const member = await interaction.guild?.members.fetch(interaction.user.id);
+    const channel = member?.voice.channel;
     if (!channel) {
-      message.reply('You need to join a voice channel first!');
+      await interaction.reply({ content: 'You need to join a voice channel first!', ephemeral: true });
       return;
     }
 
     if (!process.env.SPEECHMATICS_API_KEY) {
-      message.reply('SPEECHMATICS_API_KEY not set. Voice transcription is disabled.');
+      await interaction.reply({ content: 'SPEECHMATICS_API_KEY not set. Voice transcription is disabled.', ephemeral: true });
       return;
     }
+
+    // Acknowledge the interaction immediately to avoid 3-second timeout
+    await interaction.deferReply();
 
     // Clean up existing session in this guild if any
     const existingSession = guildSessions.get(guildId);
@@ -156,7 +206,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
 
         let replyText = `**[${speaker}]** ${transcript}\n> 🤖 ${agentText}`;
         if (enqueuedJobIds && enqueuedJobIds.length > 0) {
-          replyText += `\n> 📋 Job queued! Check status with: \`!status ${workflowId}\``;
+          replyText += `\n> 📋 Job queued! Check status with: \`/status workflow_id:${workflowId}\``;
         }
 
         await sendLongMessage(session.activeTextChannel, replyText);
@@ -181,16 +231,16 @@ client.on(Events.MessageCreate, async (message: Message) => {
     guildSessions.set(guildId, {
       connection,
       speechmatics: sessionSpeechmatics,
-      activeConversationId: message.channel.id,
-      activeTextChannel: message.channel as SendableChannel,
+      activeConversationId: interaction.channelId,
+      activeTextChannel: interaction.channel as SendableChannel,
       activeUserStreams,
       userSpeakerMap,
       speakerCounter: 1,
     });
 
-    connection.on(VoiceConnectionStatus.Ready, () => {
+    connection.on(VoiceConnectionStatus.Ready, async () => {
       console.log(`[Discord Bot] Joined voice channel ${channel.name}`);
-      message.reply(`Joined voice channel **${channel.name}** and listening...`);
+      await interaction.editReply(`Joined voice channel **${channel.name}** and listening...`);
 
       const receiver = connection.receiver;
 
@@ -247,10 +297,10 @@ client.on(Events.MessageCreate, async (message: Message) => {
   }
 
   // Leave Voice Channel command (BUG J)
-  if (message.content.startsWith('!agent leave')) {
+  if (commandName === 'leave') {
     const session = guildSessions.get(guildId);
     if (!session) {
-      message.reply('I am not in a voice channel in this server.');
+      await interaction.reply({ content: 'I am not in a voice channel in this server.', ephemeral: true });
       return;
     }
 
@@ -262,20 +312,22 @@ client.on(Events.MessageCreate, async (message: Message) => {
     }, 200);
     guildSessions.delete(guildId);
 
-    message.reply('Left voice channel and cleared active listening session.');
+    await interaction.reply('Left voice channel and cleared active listening session.');
     return;
   }
 
   // Handle text interaction with agent
-  if (message.content.startsWith('!agent say')) {
-    const text = message.content.replace('!agent say', '').trim();
+  if (commandName === 'say') {
+    const text = interaction.options.getString('text');
     if (!text) return;
+
+    await interaction.deferReply();
 
     try {
       const response = await axios.post(`${BACKEND_URL}/agent/invoke`, {
-        conversationId: message.channel.id,
+        conversationId: interaction.channelId,
         text,
-        speakerId: message.author.username,
+        speakerId: interaction.user.username,
         type: 'text'
       });
       const workflowId: string = response.data.workflowId;
@@ -283,26 +335,28 @@ client.on(Events.MessageCreate, async (message: Message) => {
       
       let reply = response.data.response as string;
       if (enqueuedJobIds && enqueuedJobIds.length > 0) {
-        reply += `\n\n[System] Background analysis enqueued. Track progress using: \`!status ${workflowId}\``;
+        reply += `\n\n[System] Background analysis enqueued. Track progress using: \`/status workflow_id:${workflowId}\``;
       }
       
-      await sendLongMessage(message, reply, true);
+      await sendLongMessage(interaction, reply, true);
     } catch (error) {
       console.error(error);
-      message.reply('Error talking to the agent backend.');
+      await interaction.editReply('Error talking to the agent backend.');
     }
     return;
   }
 
   // Handle status checks - fetches real workflow/job data from backend
-  if (message.content.startsWith('!status')) {
-    const workflowId = message.content.replace('!status', '').trim();
+  if (commandName === 'status') {
+    const workflowId = interaction.options.getString('workflow_id');
     
     if (!workflowId) {
-      message.reply('Usage: \`!status <workflow_id>\` — You can find your workflow ID in the agent\'s responses.');
+      await interaction.reply({ content: 'You must provide a workflow ID.', ephemeral: true });
       return;
     }
     
+    await interaction.deferReply();
+
     try {
       const response = await axios.get(`${BACKEND_URL}/agent/status/${workflowId}`);
       const { workflow, jobs } = response.data;
@@ -344,9 +398,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
         `● **Asynchronous Analytical Jobs:**\n${jobSummary}`,
       ].join('\n');
 
-      await sendLongMessage(message, statusResponse, true);
+      await sendLongMessage(interaction, statusResponse, true);
     } catch (error) {
-      message.reply('Could not fetch status. Make sure the workflow ID is correct.');
+      await interaction.editReply('Could not fetch status. Make sure the workflow ID is correct.');
     }
   }
 });

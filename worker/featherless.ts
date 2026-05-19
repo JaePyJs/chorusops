@@ -8,7 +8,7 @@ const client = new OpenAI({
   baseURL: process.env.FEATHERLESS_BASE_URL || 'https://api.featherless.ai/v1',
 });
 
-const MODEL = process.env.FEATHERLESS_MODEL || 'deepseek-ai/DeepSeek-V3.1';
+const MODEL = process.env.FEATHERLESS_MODEL || 'deepseek-ai/DeepSeek-V4-Flash';
 
 export interface DeepAnalysisResult {
   summary: string;
@@ -57,17 +57,31 @@ Provide your output as structured JSON matching EXACTLY this schema, with no oth
 
         const content = response.choices[0]?.message?.content ?? '{}';
 
-        // Extract the first JSON object block from the response.
-        // This handles models that output prose before/after the JSON.
+        // Robust JSON block extraction (supporting standard JSON and unbraced plain key-value structures)
+        let jsonStr = '';
         const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          throw new Error(`Invalid response format: No JSON block found in content: ${content}`);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[0];
+        } else {
+          // Strip any markdown code block wrapper boundaries (e.g. ```json ... ```)
+          let cleaned = content.replace(/```[a-zA-Z0-9]*\n?/g, '').replace(/```/g, '').trim();
+          if (!cleaned.startsWith('{')) {
+            cleaned = `{${cleaned}}`;
+          }
+          jsonStr = cleaned;
         }
 
         try {
-          return JSON.parse(jsonMatch[0]) as DeepAnalysisResult;
-        } catch {
-          throw new Error(`Invalid JSON format: Failed to parse JSON block: ${jsonMatch[0]}`);
+          const parsed = JSON.parse(jsonStr);
+          return {
+            summary: String(parsed.summary ?? 'No summary provided.'),
+            pros: Array.isArray(parsed.pros) ? parsed.pros.map(String) : [],
+            cons: Array.isArray(parsed.cons) ? parsed.cons.map(String) : [],
+            score: String(parsed.score ?? '5'),
+            recommendation: String(parsed.recommendation ?? 'Pass'),
+          } as DeepAnalysisResult;
+        } catch (err: any) {
+          throw new Error(`Failed to parse response: ${err.message}. Original content: ${content}`);
         }
 
       } catch (error) {

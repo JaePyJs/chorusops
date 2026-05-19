@@ -72,12 +72,14 @@ Real-time STT is configured as follows in `bot/speechmatics.ts`, based on the [t
     "enable_partials": false,
     "diarization": "speaker",
     "max_delay": 5,
-    "end_of_utterance_silence_trigger": 0.5
+    "conversation_config": {
+      "end_of_utterance_silence_trigger": 0.5
+    }
   }
 }
 ```
 
-**Turn detection**: `end_of_utterance_silence_trigger: 0.5` is the SMART_TURN equivalent. The server fires `EndOfUtterance` after 0.5s of silence, and the preceding `AddTranscript` event is forwarded to the Gemini planner. `enable_partials: false` prevents mid-sentence LLM calls.
+**Turn detection**: `end_of_utterance_silence_trigger: 0.5` (nested under `conversation_config`) is the SMART_TURN equivalent. The server fires `EndOfUtterance` after 0.5s of silence, and the preceding `AddTranscript` event is forwarded to the Gemini planner. `enable_partials: false` prevents mid-sentence LLM calls.
 
 **Speaker attribution**: `diarization: 'speaker'` causes each result's `alternatives[0].speaker` to contain a label (`S1`, `S2`, ...). Discord user IDs are mapped to these labels on first detected speech.
 

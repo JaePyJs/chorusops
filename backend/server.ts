@@ -103,7 +103,10 @@ app.get('/agent/status/:workflow_id', (req: Request, res: Response) => {
   });
 });
 
-// --- Start Server ---
+import { startWorker } from '../worker/worker';
+
+// --- Start Server and Worker ---
 app.listen(port, () => {
   console.log(`[Backend] Server listening on port ${port}`);
+  startWorker();
 });

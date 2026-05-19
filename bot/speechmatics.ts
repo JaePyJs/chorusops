@@ -53,7 +53,7 @@ export class SpeechmaticsClient {
 
       // SMART_TURN equivalent configuration per turn-detection docs:
       //   - end_of_utterance_silence_trigger: 0.5s → fires EndOfUtterance after 0.5s of silence
-      //     Note: This parameter belongs directly inside transcription_config, NOT nested under conversation_config.
+      //     Note: This parameter belongs nested under conversation_config inside transcription_config.
       //   - enable_partials: false → no mid-word AddPartialTranscript events sent to us
       //   - diarization: 'speaker' → AddTranscript includes per-word speaker labels (S1, S2, ...)
       //   - max_delay: 5 → server must emit a final transcript within 5s regardless
@@ -71,7 +71,9 @@ export class SpeechmaticsClient {
           diarization: 'speaker',
           max_delay: 5,
           // 0.5s of silence triggers end of utterance — recommended for voice AI (docs: 0.5-0.8s)
-          end_of_utterance_silence_trigger: 0.5,
+          conversation_config: {
+            end_of_utterance_silence_trigger: 0.5,
+          },
         },
       };
 

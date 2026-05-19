@@ -6,7 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = new GoogleGenAI({
+  vertexai: true,
+  project: process.env.GCP_PROJECT_ID || 'project-2aa9d51d-e1b8-459f-a44',
+  location: process.env.GCP_LOCATION || 'us-central1',
+});
 const MODEL_NAME = 'gemini-2.5-flash';
 
 // --- Define Tools ---
