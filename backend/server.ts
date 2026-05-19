@@ -117,10 +117,25 @@ app.get('/api/conversations', (req: Request, res: Response) => {
 app.get('/api/conversations/:id', (req: Request, res: Response) => {
   const id = req.params.id as string;
   const history = db.getChatHistory(id);
+  const conversation = db.conversations.get(id);
   const workflows = Array.from(db.workflows.values()).filter(w => w.conversationId === id);
   const latestWorkflow = workflows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   
-  res.json({ history, workflowId: latestWorkflow?.id });
+  res.json({ 
+    history, 
+    workflowId: latestWorkflow?.id,
+    voice: conversation?.voice || 'af_heart'
+  });
+});
+
+app.patch('/api/conversations/:id/voice', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { voice } = req.body;
+  if (!voice || typeof voice !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid voice parameter' });
+  }
+  db.setConversationVoice(id, voice);
+  res.json({ success: true, voice });
 });
 
 app.delete('/api/conversations/:id', (req: Request, res: Response) => {

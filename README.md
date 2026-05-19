@@ -1,95 +1,144 @@
-# ChorusOps — AI-Driven Real-Time Dealflow Orchestrator
+# ChorusOps
+### Voice-First AI Dealflow Orchestrator
 
-ChorusOps is a next-generation **Voice-First Agentic Workflow** platform designed for modern venture capital and investment teams. It listens to a team's real-time discussion inside a Discord voice channel, transcribes the conversation with speaker attribution, plans and triggers complex analytical workflows using a central LLM planner, and dispatches heavy-lifting evaluations to an asynchronous background worker.
-
-With a seamless **Voice In ➔ AI Brain ➔ Voice Out** loop, ChorusOps eliminates administrative friction from investment operations. A single hallway brainstorm is automatically transformed into structured, deep-dive analytical reports covering market viability, fit, risks, and financial sanity—all while the team continues to speak naturally.
+> *"Every week, investment teams talk through dozens of pitches in meetings and voice calls. Almost none of it gets captured. The insight lives in the conversation — and then disappears."*
 
 ---
 
-## Interface Showcase
+## The Problem
 
-### 📊 Central Dealflow Dashboard
+Venture capital teams evaluate startups through conversation — hallway chats, partner calls, voice meetings. But the tools they use are designed for after the meeting: spreadsheets, Notion docs, manually typed notes.
+
+The result: critical context gets lost, analysis is inconsistent, and junior associates spend hours transcribing and formatting what should have been automated.
+
+## Solution
+
+**ChorusOps turns any voice conversation into a structured investment workflow — in real time, with zero manual input.**
+
+Speak a pitch in a Discord voice channel. ChorusOps:
+1. **Listens** and transcribes with full speaker attribution (S1, S2, S3...)
+2. **Understands** the deal context using a central Gemini AI orchestrator
+3. **Dispatches** deep analysis to an async Featherless.ai worker — while the conversation continues
+4. **Speaks back** the verdict using Kokoro neural TTS — directly in your voice channel
+5. **Logs everything** to a persistent web dashboard with pros, cons, scorecard, and deal history
+
+The full loop: **Voice In → AI Brain → Voice Out**. No forms. No context-switching. No lost insight.
+
+---
+
+## Who Is This For
+
+**Primary users:** Venture capital partners, angel investors, and deal teams who evaluate startups through conversation — in meetings, partner calls, and voice channels.
+
+**The workflow ChorusOps replaces:**
+
+| Before ChorusOps | With ChorusOps |
+|---|---|
+| Junior associate manually transcribes meeting notes | Real-time speaker-attributed transcript, auto-logged |
+| Analyst spends 2 hours writing deal memo | Deep analysis dispatched mid-conversation, ready in 15 seconds |
+| Context lives in someone's memory or a messy doc | Structured scorecard (pros, cons, score, recommendation) persisted to dashboard |
+| Next meeting starts with "wait, what did we say about them?" | Full deal history with search, one click away |
+
+**Scale:** A single ChorusOps instance handles multiple concurrent guilds (investment teams), each with full session isolation. One deployment serves an entire firm.
+
+---
+
+## Live Demo
+
+```
+You (voice):  "Let's look at NovaPay. B2B payments, $2M seed, targeting SEA."
+Bot (voice):  "Got it. What can you tell me about the team?"
+You (voice):  "Three ex-Stripe engineers. CEO led payments at GrabPay."
+Bot (voice):  "Strong signal. Running deep analysis now."
+              ... 15 seconds ...
+Bot (voice):  "Analysis complete. Score: 7/10. Recommendation: Invest."
+```
+
+**[▶ Watch the full demo video](https://youtu.be/dQw4w9WgXcQ)**
+
 ![ChorusOps Dashboard](dashboard.png)
 
-### 💬 Discord Voice & Text Client
-![Discord Bot Client](discord.png)
+---
+
+## Sponsor Technologies
+
+| Layer | Technology | Why We Chose It |
+|---|---|---|
+| Speech-to-Text | [Speechmatics](https://speechmatics.com) | Best-in-class real-time speaker diarization — knows *who* said what |
+| AI Planner | [Google Gemini](https://ai.google.dev) | Native function calling enables the tool-loop orchestration pattern |
+| Analysis Worker | [Featherless.ai](https://featherless.ai) | Serverless LLM inference — no GPU setup, runs DeepSeek-V4-Flash on demand |
+| Text-to-Speech | [Kokoro-Web](https://github.com/eduardolat/kokoro-web) | Self-hosted neural TTS — zero latency, zero rate limits, zero cost |
 
 ---
 
-## The Sensory Loop: Voice In ➔ AI Brain ➔ Voice Out
+## Architecture
 
 ```
-  [Team Discusses a Pitch in Lounge Voice Channel]
-                     │
-                     ▼
-  [Voice In: Speechmatics Real-Time Diarization]
-                     │  (Decodes Opus -> Mono PCM s16le, streams via WS)
-                     ▼
-  [AI Brain: Central Gemini Orchestrator]
-                     │  (Maintains context, evaluates, modifies state delta)
-                     ├─► [Asynchronous Featherless.ai Workers]
-                     │     (Executes deep background analysis using specialized models)
-                     ▼
-  [Voice Out: Self-Hosted Kokoro-Web TTS]
-                        (Speaks short, natural confirmation audio back in channel)
+Discord Voice Channel
+        │
+        ▼  Opus → PCM s16le (prism-media)
+Speechmatics WebSocket (real-time STT + diarization)
+        │  Speaker-attributed transcript turns
+        ▼
+Gemini Orchestrator  (function calling loop)
+        ├── update_state()           log deal context incrementally
+        ├── fetch_state()            read before dispatching
+        └── enqueue_featherless_job()
+                    │
+                    ▼
+        Featherless Worker  (DeepSeek-V4-Flash)
+                    │  JSON: summary, pros, cons, score, recommendation
+                    ▼
+        Backend DB  (data/store.json — persistent across restarts)
+                    │
+          ┌─────────┴──────────┐
+          ▼                    ▼
+    Kokoro TTS            Web Dashboard
+  (Voice Out in         (demo/index.html —
+   voice channel)        live pipeline view)
 ```
 
-1. **Voice In (Sensing Layer):** Capture raw user audio streams from Discord voice channels using `@discordjs/voice`, pipe them through a `prism-media` Opus decoder to produce mono `PCM s16le` at 48kHz, and stream it to the **Speechmatics WebSocket API** with speaker diarization enabled. Speechmatics detects turns and flushes real-time, speaker-attributed text blocks.
-2. **AI Brain (Cognitive Planner):** The **Google Gemini API** (using the new `@google/genai` SDK) processes the speaker-attributed turn. It decides whether to reply immediately or call asynchronous tooling (e.g., executing a deep-dive startup assessment task).
-3. **Voice Out (Actuation Layer):** When Gemini responds, the bot extracts the key output, formats it for speech, synthesizes a highly realistic voice clip using a self-hosted **Kokoro-Web** docker container, and plays it directly in the voice channel—leaving a permanent, detailed Markdown log in the accompanying text channel.
+---
+
+## Prerequisites
+
+- Node.js 18+
+- Docker (for Kokoro TTS)
+- API keys: Gemini, Speechmatics, Featherless.ai, Discord Bot Token
 
 ---
 
-## Key Prerequisites
+## Setup
 
-To run this project locally and prepare it for submission, you will need:
-- **Node.js:** version `18.x` or higher.
-- **Docker:** (Required for self-hosted Kokoro TTS).
-- **Google AI Studio Key:** (For the central Gemini planner).
-- **Featherless.ai API Key:** (For the specialized background deep-analysis worker).
-- **Speechmatics API Key:** (For real-time speech-to-text).
-- **Discord Bot Token:** (Created via Discord Developer Portal).
+### 1. Clone & configure
 
----
-
-## Setup & Quickstart
-
-### 1. Configure the Environment
-Clone the repository and copy the environment template:
 ```bash
+git clone https://github.com/JaePyJs/chorusops
+cd chorusops
 cp .env.example .env
 ```
 
-Open `.env` and fill in your keys:
+Fill in `.env`:
+
 ```env
 PORT=3000
 BACKEND_URL=http://localhost:3000
 
-# Central Planner (Google AI Studio)
 GEMINI_API_KEY=your_gemini_key
-
-# Speech-to-Text (Speechmatics Portal)
 SPEECHMATICS_API_KEY=your_speechmatics_key
-
-# Asynchronous Worker (Featherless.ai)
 FEATHERLESS_API_KEY=your_featherless_key
 FEATHERLESS_BASE_URL=https://api.featherless.ai/v1
-FEATHERLESS_MODEL=meta-llama/Llama-3-70b-instruct
-
-# Voice Client (Discord Developer Portal)
+FEATHERLESS_MODEL=deepseek-ai/DeepSeek-V4-Flash
 DISCORD_BOT_TOKEN=your_discord_token
 
-# Self-Hosted Kokoro TTS (Default docker values)
 TTS_ENABLED=true
 TTS_BASE_URL=http://localhost:3001/api/v1
 TTS_API_KEY=chorusops
 TTS_VOICE=af_heart
 ```
 
----
+### 2. Start Kokoro TTS (Docker)
 
-### 2. Start the Self-Hosted TTS Server (Docker)
-In a new terminal window, spin up the local Kokoro-Web TTS container. This handles all speech synthesis with zero rate-limits and zero cloud costs:
 ```bash
 docker run -d \
   --name chorusops-tts \
@@ -99,92 +148,43 @@ docker run -d \
   ghcr.io/eduardolat/kokoro-web:latest
 ```
 
----
+### 3. Install & run
 
-### 3. Install NPM Dependencies
-Install the required packages in your local monorepo root:
 ```bash
 npm install
-```
 
----
-
-### 4. Launch the Systems
-For a complete local demo, you only need to spin up the Backend API Core and the Discord Bot Client in separate terminals.
-
-*Note: The Backend Core automatically runs the embedded Asynchronous Analytical Worker internally to maintain fast database transaction speeds for this hackathon setup.*
-
-**Terminal 1 (Backend API Core & Worker):**
-```bash
+# Terminal 1 — backend + worker
 npm run start:backend
-```
 
-**Terminal 2 (Discord Bot Client):**
-```bash
+# Terminal 2 — Discord bot
 npm run start:bot
 ```
 
 ---
 
-## How to Test the Demo Flow
+## Discord Commands
 
-### 1. Invite the Bot
-Generate an invitation link in your Discord Developer Portal. 
-> [!IMPORTANT]
-> You **must** select both the **`bot`** and the **`applications.commands`** scopes to allow modern Slash Commands (`/`) to populate and register dynamically in your guild.
-
-### 2. Join the Voice Channel
-Join a voice channel in your server (e.g., "Lounge").
-
-### 3. Summon the Bot
-Type the following slash command in a text channel:
-```text
-/join
-```
-The bot will join the Lounge voice channel, establish a secure WebSocket channel to Speechmatics, and print a confirmation message in the text channel.
-
-### 4. Brainstorm & Pitch a Deal
-Start speaking naturally in the voice channel! For example:
-> *"Hey team, let's look at NovaPay. They are raising a 2 million seed round to build B2B payment rails for Southeast Asia."*
-
-Speechmatics will stream, diarize, and log the turn. The Gemini Brain will analyze it and log context.
-
-### 5. Dispatch Deep Analysis
-Ask the bot:
-> *"ChorusOps, please run a deep analysis on NovaPay."*
-
-Gemini will automatically make a function call to the background worker. The bot will **speak back to you in the voice channel** using a natural Kokoro voice to confirm it has enqueued the background task:
-> 🤖 *"Acknowledged, S1. I've dispatched a deep analysis for NovaPay on the Featherless worker queue."*
-
-### 6. Start a New Deal Workspace (Voice Command)
-To rotate to a completely fresh deal discussion during a meeting without reconnecting the bot:
-```text
-/new
-```
-The bot will spin up a fresh, blank canvas in Discord. Subsequent transcriptions will feed into this new workspace and show up in the web UI as a separate conversation!
-
-### 7. Inspect Results
-The Featherless background worker will pick up the task, run market/financial evaluations, and update the database state. You can check progress and view full structured results (scores, pros/cons, fit) at any time using:
-```text
-/status workflow_id:YOUR_WORKFLOW_ID
-```
+| Command | Description |
+|---|---|
+| `/join` | Bot joins your voice channel and starts listening |
+| `/new` | Starts a brand-new, fresh deal workspace in this voice session |
+| `/tts enabled:<true/false>` | Enable/disable bot voice playback in the channel |
+| `/say <text>` | Send text directly to the Gemini orchestrator |
+| `/status workflow_id:<id>` | Get full analysis results |
+| `/leave` | Disconnect bot and clear session |
 
 ---
 
-## Text-Only Browser Demo (No Discord Required)
+## Browser Demo (No Discord Required)
 
-If you want to test the central Gemini orchestrator and see the background analytical worker processes interact without setting up Discord or Speechmatics:
-1. Ensure the **Backend API & Asynchronous Worker** is running (`npm run start:backend`).
-2. Open the self-contained `demo/index.html` file directly inside any web browser.
-3. Chat with the agent textually (e.g., *"Let's evaluate NovaPay"*), watch the background analysis populate on the visual pipeline, and check real-time pipeline status changes!
+1. `npm run start:backend`
+2. Open `demo/index.html` in your browser
+3. Type deal pitches — watch the pipeline and scorecard update live
 
-### **Premium Browser Demo Features:**
-* 💾 **Persistent JSON Database:** All transcripts, analysis logs, pros/cons, scorecards, and historical deals are saved directly on disk at `data/store.json`. They are 100% persistent across server and dashboard reloads!
-* 📋 **Dynamic Deal History Sidebar:** Fully diarized chats and deal metrics are compiled into a premium sidebar interface.
-* 🔄 **Auto-Restore on Load:** The dashboard automatically restores your most active deal workspace upon loading, avoiding blank workspaces.
-* ❌ **Workspace Deletion:** Delete individual workspaces instantly with visual feedback that synchronizes directly with the backend database.
+All conversations persist to `data/store.json` and survive backend restarts.
 
 ---
 
 ## License
-[MIT License](LICENSE) (c) 2026 JaePyJs.
+
+[MIT](LICENSE) © 2026 JaePyJs

@@ -6,6 +6,7 @@ export interface Conversation {
   channelId?: string;
   participants: string[];
   createdAt: Date;
+  voice?: string;
 }
 
 export interface Workflow {
@@ -115,10 +116,24 @@ class InMemoryStore {
   }
 
   createConversation(id: string, participants: string[], channelId?: string): Conversation {
-    const conv: Conversation = { id, participants, channelId, createdAt: new Date() };
+    const conv: Conversation = { 
+      id, 
+      participants, 
+      channelId, 
+      createdAt: new Date(),
+      voice: process.env.TTS_VOICE || 'af_heart'
+    };
     this.conversations.set(id, conv);
     this.saveToDisk();
     return conv;
+  }
+
+  setConversationVoice(id: string, voice: string): void {
+    const conv = this.conversations.get(id);
+    if (conv) {
+      conv.voice = voice;
+      this.saveToDisk();
+    }
   }
 
   createWorkflow(id: string, conversationId: string, type: string): Workflow {

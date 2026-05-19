@@ -253,6 +253,47 @@
     .job-title { font-weight: 600; margin-bottom: 8px; color: white; }
     .job-prop { color: var(--text-muted); margin-top: 8px; }
     .job-val { color: var(--text-main); display: block; margin-top: 2px; }
+
+    /* Premium Voice Control Panel Styles */
+    .voice-control-panel {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
+      margin-right: 20px;
+    }
+    #voice-select {
+      background: rgba(15, 15, 26, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #voice-select:hover {
+      border-color: rgba(59, 130, 246, 0.5);
+      background: rgba(25, 25, 40, 0.9);
+    }
+    #speech-toggle-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    #speech-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(59, 130, 246, 0.5);
+    }
   </style>
 </head>
 <body>
@@ -275,6 +316,25 @@
   <main class="chat-main">
     <header>
       <div style="font-weight: 500; color: var(--text-muted);">Current Deal Context: <span id="session-key" style="color: var(--text-main);"></span></div>
+      
+      <!-- Premium Synchronized Voice Control Panel -->
+      <div class="voice-control-panel">
+        <select id="voice-select" onchange="changeVoice()" title="Select neural bot voice model">
+          <option value="af_heart">Heart (Female - Default)</option>
+          <option value="af_bella">Bella (Female)</option>
+          <option value="af_nicole">Nicole (Female)</option>
+          <option value="af_sarah">Sarah (Female)</option>
+          <option value="am_adam">Adam (Male)</option>
+          <option value="am_michael">Michael (Male)</option>
+          <option value="am_fenrir">Fenrir (Male)</option>
+        </select>
+        
+        <button id="speech-toggle-btn" onclick="toggleWebSpeech()" title="Toggle Browser Speech Feedback">
+          <span id="speech-toggle-icon">🔇</span>
+          <span id="speech-toggle-text">Speech Off</span>
+        </button>
+      </div>
+
       <div class="status-dot-container">
         <div class="status-dot" id="online-dot"></div>
         <span id="online-text">Connecting...</span>
@@ -321,6 +381,88 @@
   }
   let activeWorkflowId = localStorage.getItem('activeWorkflowId') || null;
   let statusPollInterval = null;
+
+  // Browser Text-To-Speech Synthesis State and Handlers
+  let webSpeechEnabled = localStorage.getItem('webSpeechEnabled') === 'true';
+  setTimeout(updateSpeechToggleUI, 100);
+
+  function toggleWebSpeech() {
+    webSpeechEnabled = !webSpeechEnabled;
+    localStorage.setItem('webSpeechEnabled', webSpeechEnabled.toString());
+    updateSpeechToggleUI();
+    if (!webSpeechEnabled) {
+      window.speechSynthesis.cancel();
+    }
+  }
+
+  function updateSpeechToggleUI() {
+    const icon = document.getElementById('speech-toggle-icon');
+    const text = document.getElementById('speech-toggle-text');
+    const btn = document.getElementById('speech-toggle-btn');
+    if (!icon || !text || !btn) return;
+    if (webSpeechEnabled) {
+      icon.textContent = '🔊';
+      text.textContent = 'Speech On';
+      btn.style.background = 'rgba(59, 130, 246, 0.15)';
+      btn.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+    } else {
+      icon.textContent = '🔇';
+      text.textContent = 'Speech Off';
+      btn.style.background = 'rgba(255,255,255,0.05)';
+      btn.style.borderColor = 'var(--border-color)';
+    }
+  }
+
+  async function changeVoice() {
+    const voiceVal = document.getElementById('voice-select').value;
+    try {
+      await fetch(`${BACKEND}/api/conversations/${conversationId}/voice`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice: voiceVal })
+      });
+      console.log('[Dashboard] Synced voice change to backend:', voiceVal);
+    } catch (err) {
+      console.error('[Dashboard] Failed to sync voice change:', err);
+    }
+  }
+
+  function speakText(text) {
+    if (!webSpeechEnabled) return;
+    window.speechSynthesis.cancel();
+    
+    // Clean text of markdown / code segments for clean vocal reading
+    const cleaned = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`[^`]+`/g, '')
+      .replace(/\*+([^*]+)\*+/g, '$1')
+      .replace(/#+\s/g, '')
+      .replace(/>\s/g, '')
+      .replace(/\[System\][^\n]*/g, '')
+      .replace(/\n+/g, ' ')
+      .trim();
+
+    const sentences = cleaned.match(/[^.!?]+[.!?]+/g) ?? [cleaned];
+    const sentenceText = sentences.slice(0, 2).join(' ').slice(0, 200).trim();
+    if (!sentenceText) return;
+
+    const utterance = new SpeechSynthesisUtterance(sentenceText);
+    const select = document.getElementById('voice-select');
+    const isMale = select && select.value.startsWith('am_');
+    const voices = window.speechSynthesis.getVoices();
+    
+    if (voices.length > 0) {
+      const matchingVoice = voices.find(v => {
+        const nameLower = v.name.toLowerCase();
+        return isMale ? (nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('mark') || nameLower.includes('google us english')) 
+                      : (nameLower.includes('female') || nameLower.includes('zira') || nameLower.includes('hazel') || nameLower.includes('google uk english female'));
+      });
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+      }
+    }
+    window.speechSynthesis.speak(utterance);
+  }
 
   document.getElementById('session-key').textContent = conversationId;
 
@@ -415,6 +557,11 @@
     try {
       const res = await fetch(`${BACKEND}/api/conversations/${id}`);
       const data = await res.json();
+      
+      if (data.voice) {
+        document.getElementById('voice-select').value = data.voice;
+      }
+      
       if (data.history && data.history.length > 0) {
         data.history.forEach(m => {
           addMessage(m.parts[0].text, m.role === 'model' ? 'agent' : 'user');
@@ -509,6 +656,8 @@
 
       const data = await res.json();
       thinking.textContent = data.response;
+      
+      speakText(data.response);
 
       if (data.workflowId) activeWorkflowId = data.workflowId;
 

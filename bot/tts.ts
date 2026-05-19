@@ -33,7 +33,7 @@ export function extractSpokenText(fullResponse: string): string {
 }
 
 // call local kokoro tts api
-async function fetchKokoroStream(text: string): Promise<Readable> {
+async function fetchKokoroStream(text: string, voiceOverride?: string): Promise<Readable> {
   const res = await fetch(`${TTS_BASE_URL}/audio/speech`, {
     method: 'POST',
     headers: {
@@ -43,7 +43,7 @@ async function fetchKokoroStream(text: string): Promise<Readable> {
     body: JSON.stringify({
       model: 'model_q8f16',
       input: text,
-      voice: TTS_VOICE,
+      voice: voiceOverride || TTS_VOICE,
       response_format: 'mp3',
     }),
   });
@@ -56,13 +56,13 @@ async function fetchKokoroStream(text: string): Promise<Readable> {
 }
 
 // play synthesized voice in voice channel
-export async function speakInChannel(connection: VoiceConnection, text: string): Promise<void> {
+export async function speakInChannel(connection: VoiceConnection, text: string, voiceOverride?: string): Promise<void> {
   if (!TTS_ENABLED) return;
   if (!text || text.trim().length === 0) return;
 
   try {
-    console.log(`[TTS] Speaking: "${text}"`);
-    const stream = await fetchKokoroStream(text);
+    console.log(`[TTS] Speaking: "${text}" with voice "${voiceOverride || TTS_VOICE}"`);
+    const stream = await fetchKokoroStream(text, voiceOverride);
     const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
     const player = createAudioPlayer();
     

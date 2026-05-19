@@ -19,7 +19,28 @@ const commands = [
   new SlashCommandBuilder()
     .setName('status')
     .setDescription('Shows workflow stage, job status, and analysis results')
-    .addStringOption(option => option.setName('workflow_id').setDescription('The ID of the workflow to check').setRequired(true))
+    .addStringOption(option => option.setName('workflow_id').setDescription('The ID of the workflow to check').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('tts')
+    .setDescription('Enable or disable bot voice responses')
+    .addBooleanOption(option => option.setName('enabled').setDescription('Set to true to talk, false to stay silent').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('voice')
+    .setDescription('Select the bot voice model')
+    .addStringOption(option =>
+      option.setName('name')
+        .setDescription('Pick a neural voice model')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Heart (Female - Default)', value: 'af_heart' },
+          { name: 'Bella (Female)', value: 'af_bella' },
+          { name: 'Nicole (Female)', value: 'af_nicole' },
+          { name: 'Sarah (Female)', value: 'af_sarah' },
+          { name: 'Adam (Male)', value: 'am_adam' },
+          { name: 'Michael (Male)', value: 'am_michael' },
+          { name: 'Fenrir (Male)', value: 'am_fenrir' }
+        )
+    )
 ].map(command => command.toJSON());
 
 dotenv.config();
@@ -47,6 +68,8 @@ interface GuildSession {
   activeUserStreams: Set<string>;
   userSpeakerMap: Map<string, string>;
   speakerCounter: number;
+  ttsEnabled: boolean;
+  ttsVoice: string;
 }
 
 // Map of Guild ID → Active Session to support multi-guild isolation perfectly
@@ -159,10 +182,47 @@ client.on(Events.InteractionCreate, async (interaction) => {
       `• \`/help\` — Displays this guide.`,
       `• \`/new\` — Starts a brand-new, fresh deal workspace in this voice session.`,
       `• \`/join\` — Invites the bot to your current voice channel to start listening.`,
+      `• \`/tts <true/false>\` — Enables or disables voice synthesis / speaking.`,
+      `• \`/voice <name>\` — Selects the bot's neural voice model.`,
       `• \`/say <text>\` — Interacts with the central Gemini orchestrator via text.`,
       `• \`/status <workflow_id>\` — Shows workflow stage, job status, and analysis results.`,
       `• \`/leave\` — Orders the bot to disconnect from the voice channel and reset context.`,
     ].join('\n'), true);
+    return;
+  }
+
+  // Voice command
+  if (commandName === 'voice') {
+    const session = guildSessions.get(guildId);
+    if (!session) {
+      await interaction.reply({ content: 'I am not in a voice channel. Run \`/join\` first!', ephemeral: true });
+      return;
+    }
+    const voiceName = interaction.options.getString('name', true);
+    session.ttsVoice = voiceName;
+    
+    try {
+      await axios.patch(`${BACKEND_URL}/api/conversations/${session.activeConversationId}/voice`, {
+        voice: voiceName
+      });
+    } catch (err) {
+      console.error('[Discord Bot] Failed to sync voice to backend:', err);
+    }
+    
+    await interaction.reply(`🎙️ **Bot voice model updated!** Active model set to: \`${voiceName}\``);
+    return;
+  }
+
+  // TTS Toggle command
+  if (commandName === 'tts') {
+    const session = guildSessions.get(guildId);
+    if (!session) {
+      await interaction.reply({ content: 'I am not in a voice channel. Run \`/join\` first!', ephemeral: true });
+      return;
+    }
+    const enabled = interaction.options.getBoolean('enabled', true);
+    session.ttsEnabled = enabled;
+    await interaction.reply(enabled ? '🔊 **Voice playback enabled!** I will speak key updates back in the channel.' : '🔇 **Voice playback muted.** I will process everything silently in the background.');
     return;
   }
 
@@ -231,8 +291,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         // Speak agent response in voice channel (Kokoro TTS)
         const spokenText = extractSpokenText(agentText);
-        if (spokenText && session.connection) {
-          await speakInChannel(session.connection, spokenText);
+        if (spokenText && session.connection && session.ttsEnabled) {
+          await speakInChannel(session.connection, spokenText, session.ttsVoice);
         }
       } catch (error) {
         console.error('[Discord Bot] Error invoking agent:', error);
@@ -259,6 +319,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       activeUserStreams,
       userSpeakerMap,
       speakerCounter: 1,
+      ttsEnabled: true,
+      ttsVoice: process.env.TTS_VOICE || 'af_heart',
     });
 
     connection.on(VoiceConnectionStatus.Ready, async () => {
@@ -365,10 +427,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       // Speak in voice channel if bot is currently in one for this guild
       const session = guildSessions.get(guildId);
-      if (session?.connection) {
+      if (session?.connection && session.ttsEnabled) {
         const spokenText = extractSpokenText(response.data.response as string);
         if (spokenText) {
-          await speakInChannel(session.connection, spokenText);
+          await speakInChannel(session.connection, spokenText, session.ttsVoice);
         }
       }
     } catch (error) {
