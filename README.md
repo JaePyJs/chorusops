@@ -58,7 +58,7 @@ The full loop: **Voice In → AI Brain → Voice Out**. No forms. No context-swi
 
 ## Live Demo
 
-🚀 **Try the Live Replit Demo here:** [https://replit.com/@J4EDev/chorusops](https://replit.com/@J4EDev/chorusops)
+🚀 **Try the Live Demo here:** [https://chorusops.vercel.app](https://chorusops.vercel.app)
 
 ```
 You (voice):  "We're building a B2B logistics SaaS for last-mile delivery optimization. Three-person founding team of engineers and a former DHL operations lead. We're targeting a $4B market and raising $500K seed."
