@@ -25,6 +25,16 @@ export function startWorker() {
       if (pendingJob.type === 'DEEP_ANALYSIS') {
         const result = await featherlessClient.runDeepAnalysis(pendingJob.payload as DeepAnalysisPayload);
         db.updateJobStatus(pendingJob.id, 'COMPLETED', result);
+        if ('summary' in result) {
+          db.updateWorkflowState(pendingJob.workflowId, {
+            stage: 'analysis_done',
+            summary: result.summary,
+            pros: result.pros,
+            cons: result.cons,
+            score: result.score,
+            recommendation: result.recommendation,
+          });
+        }
         db.updateWorkflowStatus(pendingJob.workflowId, 'COMPLETED');
         console.log(`[Worker] Job ${pendingJob.id} COMPLETED.`);
       } else {

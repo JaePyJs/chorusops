@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const client = new OpenAI({
   apiKey: process.env.FEATHERLESS_API_KEY || 'sk-dummy',
@@ -47,6 +47,8 @@ Provide your output as structured JSON matching EXACTLY this schema, with no oth
   "score": "1-10",
   "recommendation": "Pass or Invest"
 }
+
+IMPORTANT: Your ENTIRE response must be ONLY the raw JSON object. Do NOT include any explanation, preamble, markdown formatting, code fences, or text before or after the JSON. Start your response with { and end with }.
 `;
 
         const response = await client.chat.completions.create({
@@ -100,6 +102,10 @@ Provide your output as structured JSON matching EXACTLY this schema, with no oth
           
           const pros = prosStr.match(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)?.map(s => s.replace(/(^"|"$)/g, '').replace(/\\"/g, '"')) || [];
           const cons = consStr.match(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)?.map(s => s.replace(/(^"|"$)/g, '').replace(/\\"/g, '"')) || [];
+
+          if (!summaryMatch && pros.length === 0 && cons.length === 0) {
+            throw new Error('Regex fallback also failed to extract any fields');
+          }
 
           return {
             summary: summaryMatch ? summaryMatch[1].replace(/\\"/g, '"') : "No summary provided.",

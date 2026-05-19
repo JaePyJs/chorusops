@@ -4,13 +4,31 @@ import dotenv from 'dotenv';
 import { db } from './db';
 import { v4 as uuidv4 } from 'uuid';
 
-dotenv.config();
+dotenv.config({ override: true });
 
-const ai = new GoogleGenAI({
-  vertexai: true,
-  project: process.env.GCP_PROJECT_ID || 'project-2aa9d51d-e1b8-459f-a44',
-  location: process.env.GCP_LOCATION || 'us-central1',
-});
+const useVertex = process.env.USE_VERTEX === 'true';
+let ai: GoogleGenAI;
+
+if (useVertex) {
+  const projectId = process.env.GCP_PROJECT_ID || 'project-2aa9d51d-e1b8-459f-a44';
+  const location = process.env.GCP_LOCATION || 'us-central1';
+  console.log(`[Gemini] Initializing GoogleGenAI in Vertex AI Mode (Project: ${projectId}, Location: ${location})`);
+  ai = new GoogleGenAI({
+    vertexai: true,
+    project: projectId,
+    location: location,
+  });
+} else {
+  const keyToUse = process.env.GEMINI_API_KEY;
+  if (!keyToUse) {
+    throw new Error('[Gemini] GEMINI_API_KEY environment variable is not defined!');
+  }
+  console.log(`[Gemini] Initializing GoogleGenAI in AI Studio Mode with API Key: ${keyToUse.slice(0, 8)}...${keyToUse.slice(-4)} (length: ${keyToUse.length})`);
+  ai = new GoogleGenAI({
+    apiKey: keyToUse,
+  });
+}
+
 const MODEL_NAME = 'gemini-2.5-flash';
 
 // --- Define Tools ---

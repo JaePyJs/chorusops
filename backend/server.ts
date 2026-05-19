@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -46,8 +46,12 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
       console.log(`[Backend] Created new conversation: ${conversationId}`);
     }
 
-    // Default workflow id to conversation id for simplicity in this hackathon
-    let workflow = Array.from(db.workflows.values()).find(w => w.conversationId === conversationId && w.status !== 'COMPLETED');
+    // Find the most recent workflow for this conversation to prevent state loss after analysis completes
+    const allWorkflows = Array.from(db.workflows.values())
+      .filter(w => w.conversationId === conversationId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    let workflow = allWorkflows[0];
+    
     if (!workflow) {
       workflow = db.createWorkflow(uuidv4(), conversationId, 'DEAL_EVALUATION');
       console.log(`[Backend] Created new workflow: ${workflow.id}`);
