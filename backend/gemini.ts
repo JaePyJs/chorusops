@@ -121,7 +121,7 @@ You are a PLANNER, not a Q&A bot. You must think in multi-step workflows, mainta
 
 3. **Decide when NOT to answer immediately.** If the user asks for deep market analysis, competitive landscape, financial sanity check, or due diligence — DO NOT attempt to answer with your own reasoning. Instead, use enqueue_featherless_job to dispatch the task to the specialized worker, then tell the user the job is queued.
 
-4. **Be state-aware.** Before responding, use fetch_state to check what you already know about the current deal. If analysis is already queued or completed, say so. Do not re-enqueue duplicate jobs.
+4. **Be state-aware.** Only call fetch_state when you are about to enqueue a job and need to verify no duplicate job exists. Do NOT call fetch_state on every turn — only before enqueue_featherless_job. If analysis is already queued or completed, say so. Do not re-enqueue duplicate jobs.
 
 5. **Handle failures gracefully.** If a tool call fails, acknowledge it and try an alternative or ask the user for clarification.
 
@@ -136,8 +136,6 @@ Keep replies concise and natural — your response may be read aloud in a voice 
 `;
 
 export class GeminiClient {
-  // In-process Chat object cache. If a session is not found here, it is rebuilt
-  // from the in-memory db history so we don't lose prior context within the same process run.
   private chatSessions: Map<string, Chat> = new Map();
 
   async processInput(conversationId: string, userInput: string, cleanInput?: string): Promise<string> {
@@ -145,7 +143,6 @@ export class GeminiClient {
       let chat = this.chatSessions.get(conversationId);
 
       if (!chat) {
-        // Reload existing history from db so the agent remembers prior turns
         const existingHistory = db.getChatHistory(conversationId);
 
         chat = ai.chats.create({
@@ -160,13 +157,10 @@ export class GeminiClient {
         this.chatSessions.set(conversationId, chat);
       }
 
-      // Persist the user turn to db before sending (excluding token-wasting system context prefix)
       db.appendChatMessage(conversationId, { role: 'user', parts: [{ text: cleanInput || userInput }] });
 
-      // Send the message to Gemini — SDK expects a Content-like object or string
       let response = await chat.sendMessage({ message: userInput });
 
-      // Handle function calls (Gemini planner loop)
       let loopCount = 0;
       const MAX_TOOL_LOOPS = 10;
       while (response.functionCalls && response.functionCalls.length > 0) {
@@ -182,9 +176,7 @@ export class GeminiClient {
 
           try {
             if (call.name === 'update_state') {
-              // Fix #2: args are already a structured object — no JSON.parse needed
               const { workflowId, ...stateDelta } = call.args as { workflowId: string; [key: string]: unknown };
-              // Remove undefined fields
               const cleanDelta = Object.fromEntries(
                 Object.entries(stateDelta).filter(([, v]) => v !== undefined)
               );
@@ -202,7 +194,6 @@ export class GeminiClient {
               };
               const jobId = uuidv4();
               db.createJob(jobId, workflowId, jobType, payloadFields);
-              // Also reflect jobId into workflow state so status checks see it
               db.updateWorkflowState(workflowId, { jobId, stage: 'analysis_queued' });
               console.log(`[Gemini] Enqueued job ${jobId} (${jobType}) on workflow ${workflowId}`);
               result = { success: true, jobId, workflowId, status: 'PENDING' };
@@ -233,7 +224,6 @@ export class GeminiClient {
         ? response.text 
         : 'I processed that, but have no text response.';
 
-      // Persist model turn to db
       db.appendChatMessage(conversationId, { role: 'model', parts: [{ text: finalText }] });
 
       return finalText;

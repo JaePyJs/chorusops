@@ -6,8 +6,6 @@ const POLL_INTERVAL_MS = 5000;
 export function startWorker() {
   console.log(`[Worker] Started. Polling every ${POLL_INTERVAL_MS}ms...`);
 
-  // Use an isProcessing guard so a slow Featherless response (>5s) doesn't
-  // cause a second setInterval tick to pick up the same job concurrently.
   let isProcessing = false;
 
   setInterval(async () => {

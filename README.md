@@ -6,6 +6,16 @@ With a seamless **Voice In ➔ AI Brain ➔ Voice Out** loop, ChorusOps eliminat
 
 ---
 
+## Interface Showcase
+
+### 📊 Central Dealflow Dashboard
+![ChorusOps Dashboard](dashboard.png)
+
+### 💬 Discord Voice & Text Client
+![Discord Bot Client](discord.png)
+
+---
+
 ## The Sensory Loop: Voice In ➔ AI Brain ➔ Voice Out
 
 ```
@@ -102,7 +112,7 @@ npm install
 ### 4. Launch the Systems
 For a complete local demo, you only need to spin up the Backend API Core and the Discord Bot Client in separate terminals.
 
-*Note: The Backend Core automatically runs the embedded Asynchronous Analytical Worker internally to maintain fast in-memory database transaction speeds for this hackathon setup.*
+*Note: The Backend Core automatically runs the embedded Asynchronous Analytical Worker internally to maintain fast database transaction speeds for this hackathon setup.*
 
 **Terminal 1 (Backend API Core & Worker):**
 ```bash
@@ -133,7 +143,7 @@ Type the following slash command in a text channel:
 ```
 The bot will join the Lounge voice channel, establish a secure WebSocket channel to Speechmatics, and print a confirmation message in the text channel.
 
-### 4. brainstorm/Pitch a Deal
+### 4. Brainstorm & Pitch a Deal
 Start speaking naturally in the voice channel! For example:
 > *"Hey team, let's look at NovaPay. They are raising a 2 million seed round to build B2B payment rails for Southeast Asia."*
 
@@ -146,7 +156,14 @@ Ask the bot:
 Gemini will automatically make a function call to the background worker. The bot will **speak back to you in the voice channel** using a natural Kokoro voice to confirm it has enqueued the background task:
 > 🤖 *"Acknowledged, S1. I've dispatched a deep analysis for NovaPay on the Featherless worker queue."*
 
-### 6. Inspect Results
+### 6. Start a New Deal Workspace (Voice Command)
+To rotate to a completely fresh deal discussion during a meeting without reconnecting the bot:
+```text
+/new
+```
+The bot will spin up a fresh, blank canvas in Discord. Subsequent transcriptions will feed into this new workspace and show up in the web UI as a separate conversation!
+
+### 7. Inspect Results
 The Featherless background worker will pick up the task, run market/financial evaluations, and update the database state. You can check progress and view full structured results (scores, pros/cons, fit) at any time using:
 ```text
 /status workflow_id:YOUR_WORKFLOW_ID
@@ -155,10 +172,17 @@ The Featherless background worker will pick up the task, run market/financial ev
 ---
 
 ## Text-Only Browser Demo (No Discord Required)
+
 If you want to test the central Gemini orchestrator and see the background analytical worker processes interact without setting up Discord or Speechmatics:
 1. Ensure the **Backend API & Asynchronous Worker** is running (`npm run start:backend`).
 2. Open the self-contained `demo/index.html` file directly inside any web browser.
 3. Chat with the agent textually (e.g., *"Let's evaluate NovaPay"*), watch the background analysis populate on the visual pipeline, and check real-time pipeline status changes!
+
+### **Premium Browser Demo Features:**
+* 💾 **Persistent JSON Database:** All transcripts, analysis logs, pros/cons, scorecards, and historical deals are saved directly on disk at `data/store.json`. They are 100% persistent across server and dashboard reloads!
+* 📋 **Dynamic Deal History Sidebar:** Fully diarized chats and deal metrics are compiled into a premium sidebar interface.
+* 🔄 **Auto-Restore on Load:** The dashboard automatically restores your most active deal workspace upon loading, avoiding blank workspaces.
+* ❌ **Workspace Deletion:** Delete individual workspaces instantly with visual feedback that synchronizes directly with the backend database.
 
 ---
 

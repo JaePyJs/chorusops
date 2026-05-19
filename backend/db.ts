@@ -30,7 +30,6 @@ export interface Job {
   updatedAt: Date;
 }
 
-// A single message turn stored in RAM for temporary chat history caching.
 export interface ChatMessage {
   role: 'user' | 'model';
   parts: Array<{ text: string }>;
@@ -40,9 +39,6 @@ class InMemoryStore {
   public conversations: Map<string, Conversation> = new Map();
   public workflows: Map<string, Workflow> = new Map();
   public jobs: Map<string, Job> = new Map();
-  // In-process chat history cache, keyed by conversationId.
-  // Allows a Chat object to be rebuilt with prior turns if the in-memory session is evicted.
-  // This store is entirely transient (in RAM) and does NOT persist across process restarts.
   public chatHistories: Map<string, ChatMessage[]> = new Map();
 
   private storePath = path.join(__dirname, '..', 'data', 'store.json');
@@ -182,6 +178,25 @@ class InMemoryStore {
     job.updatedAt = new Date();
     this.saveToDisk();
     return job;
+  }
+
+  deleteConversation(id: string): boolean {
+    const deleted = this.conversations.delete(id);
+    this.chatHistories.delete(id);
+    
+    // Also delete any associated workflows and jobs to clean up the DB entirely
+    const associatedWorkflows = Array.from(this.workflows.values()).filter(w => w.conversationId === id);
+    for (const wf of associatedWorkflows) {
+      this.workflows.delete(wf.id);
+      // Delete jobs for this workflow
+      const associatedJobs = Array.from(this.jobs.values()).filter(j => j.workflowId === wf.id);
+      for (const j of associatedJobs) {
+        this.jobs.delete(j.id);
+      }
+    }
+    
+    this.saveToDisk();
+    return deleted;
   }
 }
 

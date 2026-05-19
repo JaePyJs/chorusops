@@ -4,13 +4,14 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import { SpeechmaticsClient } from './speechmatics';
 import { Job } from '../backend/db';
-import { speakInChannel, extractSpokenText } from './tts';
+import { speakInChannel, extractSpokenText, warmupKokoro } from './tts';
 // prism-media is required inline (CJS) to access the opus decoder at runtime.
 
 const commands = [
   new SlashCommandBuilder().setName('help').setDescription('Displays the Dealflow Orchestrator guide'),
   new SlashCommandBuilder().setName('join').setDescription('Invites the bot to your current voice channel'),
   new SlashCommandBuilder().setName('leave').setDescription('Orders the bot to disconnect from the voice channel'),
+  new SlashCommandBuilder().setName('new').setDescription('Starts a brand-new, fresh deal workspace in this voice session'),
   new SlashCommandBuilder()
     .setName('say')
     .setDescription('Interacts with the central Gemini orchestrator via text')
@@ -132,6 +133,7 @@ client.once(Events.ClientReady, async c => {
         await rest.put(Routes.applicationGuildCommands(c.user.id, guild.id), { body: commands });
       }
       console.log('[Discord Bot] Successfully reloaded application (/) commands.');
+      await warmupKokoro();
     }
   } catch (error) {
     console.error('[Discord Bot] Failed to register slash commands:', error);
@@ -155,11 +157,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
       `**Dealflow Orchestrator — Interface Command Guide**`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       `• \`/help\` — Displays this guide.`,
+      `• \`/new\` — Starts a brand-new, fresh deal workspace in this voice session.`,
       `• \`/join\` — Invites the bot to your current voice channel to start listening.`,
       `• \`/say <text>\` — Interacts with the central Gemini orchestrator via text.`,
       `• \`/status <workflow_id>\` — Shows workflow stage, job status, and analysis results.`,
       `• \`/leave\` — Orders the bot to disconnect from the voice channel and reset context.`,
     ].join('\n'), true);
+    return;
+  }
+
+  // Start New Deal command
+  if (commandName === 'new') {
+    const session = guildSessions.get(guildId);
+    if (!session) {
+      await interaction.reply({ content: 'I am not in a voice channel. Run \`/join\` first to start a session!', ephemeral: true });
+      return;
+    }
+    const suffix = Math.random().toString(36).slice(2, 9);
+    session.activeConversationId = `discord-${guildId}-${interaction.channelId}-${suffix}`;
+    await interaction.reply(`🚀 **New Deal Workspace Activated!**\nAll subsequent voice discussions in this channel will feed into this fresh workspace: \`${session.activeConversationId}\``);
     return;
   }
 

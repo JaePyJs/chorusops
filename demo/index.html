@@ -90,14 +90,17 @@
     #history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
     .history-item {
-      padding: 12px 14px;
+      padding: 10px 14px;
       background: rgba(255, 255, 255, 0.02);
       border-radius: 8px;
       font-size: 0.9rem;
       color: var(--text-muted);
       cursor: pointer;
       transition: all 0.2s;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
     }
     .history-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-main); }
     .history-item.active {
@@ -105,6 +108,30 @@
       border-left: 3px solid var(--accent-blue);
       color: var(--text-main);
       font-weight: 500;
+    }
+    .history-item-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-delete-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.25);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .history-delete-btn:hover {
+      background: rgba(239, 68, 68, 0.25);
+      color: #f87171;
     }
 
     /* CENTER: Main Chat */
@@ -286,8 +313,13 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const BACKEND = params.get('backend') || 'http://localhost:3000';
-  let conversationId = 'deal-' + Math.random().toString(36).slice(2, 9);
-  let activeWorkflowId = null;
+  
+  let conversationId = localStorage.getItem('activeConversationId');
+  if (!conversationId) {
+    conversationId = 'deal-' + Math.random().toString(36).slice(2, 9);
+    localStorage.setItem('activeConversationId', conversationId);
+  }
+  let activeWorkflowId = localStorage.getItem('activeWorkflowId') || null;
   let statusPollInterval = null;
 
   document.getElementById('session-key').textContent = conversationId;
@@ -303,24 +335,68 @@
   async function loadHistoryList() {
     try {
       const res = await fetch(`${BACKEND}/api/conversations`);
-      if (!res.ok) return;
+      if (!res.ok) return [];
       const convs = await res.json();
       historyList.innerHTML = '';
       convs.forEach(c => {
-        const div = document.createElement('div');
-        div.className = `history-item ${c.id === conversationId ? 'active' : ''}`;
-        div.textContent = c.title;
-        div.onclick = () => loadConversation(c.id);
-        historyList.appendChild(div);
+        const item = document.createElement('div');
+        item.className = `history-item ${c.id === conversationId ? 'active' : ''}`;
+        item.onclick = () => loadConversation(c.id);
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'history-item-title';
+        titleSpan.textContent = c.title;
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'history-delete-btn';
+        deleteBtn.innerHTML = '×';
+        deleteBtn.title = 'Delete deal workspace';
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation(); // Prevent loading the conversation
+          deleteConversationWorkspace(c.id);
+        };
+        
+        item.appendChild(titleSpan);
+        item.appendChild(deleteBtn);
+        historyList.appendChild(item);
       });
+      return convs;
     } catch (e) {
       console.log('Backend not ready yet for history.');
+      return [];
+    }
+  }
+
+  async function deleteConversationWorkspace(id) {
+    if (!confirm('Are you sure you want to permanently delete this deal workspace and all its analytics?')) return;
+    
+    try {
+      const res = await fetch(`${BACKEND}/api/conversations/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        // If the deleted conversation was the active one, start a fresh deal
+        if (id === conversationId) {
+          localStorage.removeItem('activeConversationId');
+          localStorage.removeItem('activeWorkflowId');
+          startNewDeal();
+        } else {
+          loadHistoryList();
+        }
+      } else {
+        alert('Failed to delete workspace.');
+      }
+    } catch (err) {
+      alert('Error deleting workspace: ' + err.message);
     }
   }
 
   function startNewDeal() {
     conversationId = 'deal-' + Math.random().toString(36).slice(2, 9);
     activeWorkflowId = null;
+    localStorage.setItem('activeConversationId', conversationId);
+    localStorage.removeItem('activeWorkflowId');
     document.getElementById('session-key').textContent = conversationId;
     chat.innerHTML = `<div class="msg system">New deal workspace created.</div>`;
     statusContent.innerHTML = `<div class="empty-state">No active analysis pipeline running.</div>`;
@@ -330,6 +406,7 @@
 
   async function loadConversation(id) {
     conversationId = id;
+    localStorage.setItem('activeConversationId', conversationId);
     document.getElementById('session-key').textContent = conversationId;
     chat.innerHTML = '';
     activeWorkflowId = null;
@@ -338,13 +415,20 @@
     try {
       const res = await fetch(`${BACKEND}/api/conversations/${id}`);
       const data = await res.json();
-      data.history.forEach(m => {
-        addMessage(m.parts[0].text, m.role === 'model' ? 'agent' : 'user');
-      });
+      if (data.history && data.history.length > 0) {
+        data.history.forEach(m => {
+          addMessage(m.parts[0].text, m.role === 'model' ? 'agent' : 'user');
+        });
+      } else {
+        chat.innerHTML = `<div class="msg system">Workspace is currently empty.</div>`;
+      }
+      
       if (data.workflowId) {
         activeWorkflowId = data.workflowId;
+        localStorage.setItem('activeWorkflowId', activeWorkflowId);
         startStatusPolling();
       } else {
+        localStorage.removeItem('activeWorkflowId');
         statusContent.innerHTML = `<div class="empty-state">No active analysis pipeline.</div>`;
         statusBadge.style.display = 'none';
       }
@@ -355,6 +439,7 @@
   }
 
   // Real-time connection health checker
+  let initialized = false;
   async function checkHealth() {
     try {
       const res = await fetch(`${BACKEND}/health`);
@@ -362,8 +447,23 @@
         document.getElementById('online-dot').style.background = 'var(--accent-teal)';
         document.getElementById('online-dot').style.boxShadow = '0 0 8px var(--accent-teal)';
         document.getElementById('online-text').textContent = 'Orchestrator Online';
-        // Auto load history once connected if empty
-        if (historyList.children.length === 0) loadHistoryList();
+        
+        if (!initialized) {
+          initialized = true;
+          const convs = await loadHistoryList();
+          let savedId = localStorage.getItem('activeConversationId');
+          const exists = convs.some(c => c.id === savedId);
+          
+          if (savedId && exists) {
+            await loadConversation(savedId);
+          } else if (convs.length > 0) {
+            // Automatically default to the most recent active deal in the sidebar
+            await loadConversation(convs[0].id);
+          } else {
+            // Truly fresh startup with no deals yet
+            startNewDeal();
+          }
+        }
       }
     } catch (err) {
       document.getElementById('online-dot').style.background = '#ef4444';

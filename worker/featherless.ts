@@ -59,10 +59,8 @@ IMPORTANT: Your ENTIRE response must be ONLY the raw JSON object. Do NOT include
 
         const content = response.choices[0]?.message?.content ?? '{}';
 
-        // Bulletproof JSON extraction
         let cleaned = content.replace(/```[a-zA-Z0-9]*\n?/g, '').replace(/```/g, '').trim();
 
-        // 1. If it doesn't start with '{', forcefully locate the first known key
         if (!cleaned.startsWith('{')) {
           const firstKeyMatch = cleaned.match(/"(summary|pros|cons|score|recommendation)"\s*:/);
           if (firstKeyMatch && firstKeyMatch.index !== undefined) {
@@ -72,12 +70,11 @@ IMPORTANT: Your ENTIRE response must be ONLY the raw JSON object. Do NOT include
           }
         }
 
-        // 2. Find the final closing brace to slice off any trailing conversational text
         const lastBrace = cleaned.lastIndexOf('}');
         if (lastBrace !== -1) {
           cleaned = cleaned.slice(0, lastBrace + 1);
         } else {
-          cleaned = cleaned + '}'; // Force append if entirely missing
+          cleaned = cleaned + '}';
         }
 
         try {
@@ -90,9 +87,8 @@ IMPORTANT: Your ENTIRE response must be ONLY the raw JSON object. Do NOT include
             recommendation: String(parsed.recommendation ?? 'Pass'),
           } as DeepAnalysisResult;
         } catch (err: any) {
-          console.warn(`[Featherless] JSON.parse failed. Engaging invincible Regex Fallback Parser...`);
+          console.warn(`[Featherless] JSON.parse failed. Engaging fallback...`);
           
-          // Fallback: forcefully extract properties from the raw text using regex
           const summaryMatch = content.match(/"summary"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
           const scoreMatch = content.match(/"score"\s*:\s*"(\d+)"/i);
           const recMatch = content.match(/"recommendation"\s*:\s*"([^"]+)"/i);

@@ -4,6 +4,7 @@ import {
   AudioPlayerStatus,
   StreamType,
   VoiceConnection,
+  VoiceConnectionStatus,
 } from '@discordjs/voice';
 import { Readable } from 'stream';
 import dotenv from 'dotenv';
@@ -15,10 +16,7 @@ const TTS_API_KEY = process.env.TTS_API_KEY || 'chorusops';
 const TTS_VOICE = process.env.TTS_VOICE || 'af_heart';
 const TTS_ENABLED = process.env.TTS_ENABLED === 'true';
 
-/**
- * Strips markdown, truncates to 2 sentences / 200 chars max.
- * Voice should be short, punchy, natural — full response goes to text channel.
- */
+// clean markdown and keep voice feedback short
 export function extractSpokenText(fullResponse: string): string {
   const cleaned = fullResponse
     .replace(/```[\s\S]*?```/g, '')        // strip code blocks
@@ -34,10 +32,7 @@ export function extractSpokenText(fullResponse: string): string {
   return sentences.slice(0, 2).join(' ').slice(0, 200).trim();
 }
 
-/**
- * Calls local Kokoro-Web (OpenAI-compatible TTS API) and returns an MP3 stream.
- * Kokoro-Web is self-hosted via Docker — zero rate limits, zero API cost.
- */
+// call local kokoro tts api
 async function fetchKokoroStream(text: string): Promise<Readable> {
   const res = await fetch(`${TTS_BASE_URL}/audio/speech`, {
     method: 'POST',
@@ -46,7 +41,7 @@ async function fetchKokoroStream(text: string): Promise<Readable> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'kokoro',
+      model: 'model_q8f16',
       input: text,
       voice: TTS_VOICE,
       response_format: 'mp3',
@@ -60,11 +55,7 @@ async function fetchKokoroStream(text: string): Promise<Readable> {
   return Readable.fromWeb(res.body as any);
 }
 
-/**
- * Speaks text in the guild's active voice channel.
- * Silent no-op if TTS_ENABLED=false or connection is unavailable.
- * Errors are caught and logged — bot never crashes due to TTS failure.
- */
+// play synthesized voice in voice channel
 export async function speakInChannel(connection: VoiceConnection, text: string): Promise<void> {
   if (!TTS_ENABLED) return;
   if (!text || text.trim().length === 0) return;
@@ -74,6 +65,13 @@ export async function speakInChannel(connection: VoiceConnection, text: string):
     const stream = await fetchKokoroStream(text);
     const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
     const player = createAudioPlayer();
+    
+    console.log('[TTS] Connection state:', connection.state.status);
+    if (connection.state.status !== VoiceConnectionStatus.Ready) {
+      console.warn('[TTS] Connection not ready, skipping TTS.');
+      return;
+    }
+
     connection.subscribe(player);
     player.play(resource);
 
@@ -87,5 +85,15 @@ export async function speakInChannel(connection: VoiceConnection, text: string):
   } catch (err) {
     console.error('[TTS] Failed to speak in channel:', err);
     // Silent fallback — text channel still gets the full response
+  }
+}
+
+export async function warmupKokoro(): Promise<void> {
+  if (!TTS_ENABLED) return;
+  try {
+    await fetchKokoroStream('Ready.');
+    console.log('[TTS] Kokoro warmed up.');
+  } catch (e) {
+    console.warn('[TTS] Warmup failed (non-fatal):', e);
   }
 }
