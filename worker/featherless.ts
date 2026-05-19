@@ -41,20 +41,21 @@ ${JSON.stringify(payload, null, 2)}
 
 Provide your output as structured JSON matching EXACTLY this schema, with no other text before or after:
 {
-  "summary": "Brief summary",
-  "pros": ["pro1", "pro2"],
-  "cons": ["con1", "con2"],
-  "score": "1-10",
+  "summary": "Concise summary (exactly 2 to 3 sentences)",
+  "pros": ["Exactly three separate core pros/strengths"],
+  "cons": ["Exactly three separate core cons/risks"],
+  "score": "Investment score from 1 to 10",
   "recommendation": "Pass or Invest"
 }
 
-IMPORTANT: Your ENTIRE response must be ONLY the raw JSON object. Do NOT include any explanation, preamble, markdown formatting, code fences, or text before or after the JSON. Start your response with { and end with }.
+IMPORTANT: Your ENTIRE response must be ONLY the raw JSON object. Do NOT include any explanation, preamble, markdown formatting, code fences, or text before or after the JSON. Start your response with { and end with }. Keep it extremely concise to optimize transmission speed.
 `;
 
         const response = await client.chat.completions.create({
           model: MODEL,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.1,
+          max_tokens: 500,
         });
 
         const content = response.choices[0]?.message?.content ?? '{}';

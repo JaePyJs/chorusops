@@ -70,6 +70,7 @@ interface GuildSession {
   speakerCounter: number;
   ttsEnabled: boolean;
   ttsVoice: string;
+  pendingWorkflows?: Set<string>;
 }
 
 // Map of Guild ID → Active Session to support multi-guild isolation perfectly
@@ -283,7 +284,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         let replyText = `**[${speaker}]** ${transcript}\n> 🤖 ${agentText}`;
         if (enqueuedJobIds && enqueuedJobIds.length > 0) {
-          replyText += `\n> 📋 Job queued! Check status with: \`/status workflow_id:${workflowId}\``;
+          replyText += `\n> 📋 Job enqueued! Background analysis running...`;
+          if (!session.pendingWorkflows) {
+            session.pendingWorkflows = new Set();
+          }
+          session.pendingWorkflows.add(workflowId);
         }
 
         await sendLongMessage(session.activeTextChannel, replyText);
@@ -345,7 +350,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const opusStream = receiver.subscribe(userId, {
-          end: { behavior: EndBehaviorType.AfterSilence, duration: 500 },
+          end: { behavior: EndBehaviorType.AfterSilence, duration: 1200 },
         });
 
         const { opus } = require('prism-media');
@@ -362,6 +367,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const cleanup = () => {
           session.activeUserStreams.delete(userId);
           console.log(`[Discord Bot] Finished streaming audio for user ${userId}.`);
+          // Force flush any buffered Speechmatics segments immediately now that speaking has ended
+          session.speechmatics.forceFlush();
         };
         opusStream.on('end', cleanup);
         opusStream.on('close', cleanup);
@@ -419,14 +426,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const enqueuedJobIds: string[] | undefined = response.data.enqueuedJobIds;
       
       let reply = response.data.response as string;
+      const session = guildSessions.get(guildId);
       if (enqueuedJobIds && enqueuedJobIds.length > 0) {
-        reply += `\n\n[System] Background analysis enqueued. Track progress using: \`/status workflow_id:${workflowId}\``;
+        reply += `\n\n[System] Background analysis enqueued. I will post the completed scorecard here automatically!`;
+        if (session) {
+          if (!session.pendingWorkflows) {
+            session.pendingWorkflows = new Set();
+          }
+          session.pendingWorkflows.add(workflowId);
+        }
       }
       
       await sendLongMessage(interaction, reply, true);
 
       // Speak in voice channel if bot is currently in one for this guild
-      const session = guildSessions.get(guildId);
       if (session?.connection && session.ttsEnabled) {
         const spokenText = extractSpokenText(response.data.response as string);
         if (spokenText) {
@@ -498,5 +511,61 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   }
 });
+
+// Background polling loop to automatically notify Discord channel when a deep analysis job completes
+setInterval(async () => {
+  for (const [guildId, session] of guildSessions.entries()) {
+    if (!session.pendingWorkflows || session.pendingWorkflows.size === 0) continue;
+
+    for (const workflowId of Array.from(session.pendingWorkflows)) {
+      try {
+        const response = await axios.get(`${BACKEND_URL}/agent/status/${workflowId}`);
+        const { workflow, jobs } = response.data;
+        
+        // Check if all jobs in this workflow are no longer PENDING or RUNNING
+        const activeJobs = jobs.filter((j: any) => j.status === 'PENDING' || j.status === 'RUNNING');
+        if (activeJobs.length === 0) {
+          // All jobs completed or failed! Remove from pending list
+          session.pendingWorkflows.delete(workflowId);
+
+          const completedJob = jobs.find((j: any) => j.status === 'COMPLETED' && j.result);
+          if (completedJob) {
+            const res = completedJob.result as {
+              score?: string;
+              recommendation?: string;
+              summary?: string;
+              pros?: string[];
+              cons?: string[];
+            };
+
+            const dealName = workflow.state?.dealName || 'Startup Deal';
+            const scorecardMsg = `📢 **Deep Analysis Complete for ${dealName}!**\n` +
+              `> **Investment Score:** \`${res.score}/10\` | **Recommendation:** \`${res.recommendation}\`\n` +
+              `> **Executive Summary:** *${res.summary}*\n` +
+              `> **Strengths:** ${res.pros?.join(', ') || 'None'}\n` +
+              `> **Risks:** ${res.cons?.join(', ') || 'None'}`;
+
+            await sendLongMessage(session.activeTextChannel, scorecardMsg);
+            console.log(`[Discord Bot] Automatically posted async job result to Discord.`);
+
+            // Speak the completed scorecard out loud in the channel hands-free!
+            if (session.connection && session.ttsEnabled) {
+              const speakText = `Deep analysis complete for ${dealName}. Score: ${res.score} out of 10. Recommendation: ${res.recommendation}. Summary: ${res.summary}`;
+              await speakInChannel(session.connection, speakText, session.ttsVoice);
+            }
+          } else {
+            const failedJob = jobs.find((j: any) => j.status === 'FAILED');
+            if (failedJob) {
+              const errorMsg = `⚠️ **Deep Analysis Failed for ${workflow.state?.dealName || 'Startup Deal'}**\n> **Error Details:** *${failedJob.error || 'Unknown error during Featherless processing.'}*`;
+              await sendLongMessage(session.activeTextChannel, errorMsg);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[Discord Bot] Error checking active workflow status for ${workflowId}:`, err);
+      }
+    }
+  }
+}, 3000);
 
 client.login(process.env.DISCORD_BOT_TOKEN);

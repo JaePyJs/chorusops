@@ -210,6 +210,42 @@
     #send-btn:hover { transform: translateY(-1px); }
     #send-btn:disabled { background: #1f1f2e; color: #4b5563; cursor: not-allowed; transform: none; }
 
+    #mic-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      width: 54px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      outline: none;
+    }
+    #mic-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+    #mic-btn.active {
+      background: linear-gradient(135deg, #ef4444, #ec4899) !important;
+      border-color: rgba(239, 68, 68, 0.4) !important;
+      animation: mic-pulse 1.5s infinite;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+    }
+    #mic-icon {
+      font-size: 1.3rem;
+      transition: transform 0.2s;
+    }
+    #mic-btn.active #mic-icon {
+      transform: scale(1.1);
+    }
+    @keyframes mic-pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+
     /* RIGHT SIDEBAR: Pipeline Dashboard */
     .sidebar-right {
       width: 380px;
@@ -351,6 +387,9 @@
 
     <div class="input-section">
       <div id="input-row">
+        <button id="mic-btn" onclick="toggleSpeechInput()" title="Start Voice Dictation">
+          <span id="mic-icon">🎙️</span>
+        </button>
         <input id="input" type="text" placeholder="Message the central orchestrator..." autocomplete="off" autofocus />
         <button id="send-btn" onclick="sendMessage()">Send</button>
       </div>
@@ -383,15 +422,25 @@
   let statusPollInterval = null;
 
   // Browser Text-To-Speech Synthesis State and Handlers
-  let webSpeechEnabled = localStorage.getItem('webSpeechEnabled') === 'true';
+  let webSpeechEnabled = false;
   setTimeout(updateSpeechToggleUI, 100);
 
-  function toggleWebSpeech() {
+  async function toggleWebSpeech() {
     webSpeechEnabled = !webSpeechEnabled;
-    localStorage.setItem('webSpeechEnabled', webSpeechEnabled.toString());
     updateSpeechToggleUI();
     if (!webSpeechEnabled) {
       window.speechSynthesis.cancel();
+    }
+    
+    // Sync speech toggle to backend database
+    try {
+      await fetch(`${BACKEND}/api/conversations/${conversationId}/speech`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: webSpeechEnabled })
+      });
+    } catch (err) {
+      console.error('[Dashboard] Failed to sync speech toggle change:', err);
     }
   }
 
@@ -412,6 +461,80 @@
       btn.style.borderColor = 'var(--border-color)';
     }
   }
+
+  // Browser-Native Speech Recognition Input Handlers
+  let recognition = null;
+  let isListening = false;
+
+  function initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('[Speech] Browser-native Speech Recognition not supported.');
+      const micBtn = document.getElementById('mic-btn');
+      if (micBtn) micBtn.style.display = 'none';
+      return;
+    }
+    
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      isListening = true;
+      const btn = document.getElementById('mic-btn');
+      const icon = document.getElementById('mic-icon');
+      if (btn) btn.classList.add('active');
+      if (icon) icon.textContent = '🛑';
+      input.placeholder = 'Listening... Speak your pitch now...';
+    };
+
+    recognition.onend = () => {
+      isListening = false;
+      const btn = document.getElementById('mic-btn');
+      const icon = document.getElementById('mic-icon');
+      if (btn) btn.classList.remove('active');
+      if (icon) icon.textContent = '🎙️';
+      input.placeholder = 'Message the central orchestrator...';
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      input.value = transcript;
+      
+      // Auto-submit enqueued speech dictation directly to backend orchestrator
+      setTimeout(() => {
+        sendMessage();
+      }, 500);
+    };
+
+    recognition.onerror = (event) => {
+      console.error('[Speech] Error captured during recognition:', event.error);
+      isListening = false;
+      const btn = document.getElementById('mic-btn');
+      const icon = document.getElementById('mic-icon');
+      if (btn) btn.classList.remove('active');
+      if (icon) icon.textContent = '🎙️';
+      input.placeholder = 'Message the central orchestrator...';
+    };
+  }
+
+  function toggleSpeechInput() {
+    if (!recognition) {
+      initSpeechRecognition();
+    }
+    if (!recognition) return;
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      input.value = '';
+      recognition.start();
+    }
+  }
+
+  // Auto initialize on load
+  setTimeout(initSpeechRecognition, 200);
 
   async function changeVoice() {
     const voiceVal = document.getElementById('voice-select').value;
@@ -561,6 +684,10 @@
       if (data.voice) {
         document.getElementById('voice-select').value = data.voice;
       }
+      
+      // Update browser speech toggle state and UI from backend database
+      webSpeechEnabled = !!data.speechEnabled;
+      updateSpeechToggleUI();
       
       if (data.history && data.history.length > 0) {
         data.history.forEach(m => {

@@ -26,6 +26,19 @@ The full loop: **Voice In → AI Brain → Voice Out**. No forms. No context-swi
 
 ---
 
+## Features
+
+- 🎙️ **Real-time voice transcription** with speaker diarization — knows who said what (S1, S2, S3...)
+- 🧠 **Gemini function-calling orchestrator** — plans steps, updates deal state, dispatches workers autonomously
+- ⚡ **Async deep analysis worker** — Featherless DeepSeek-V3 runs investment analysis in the background while conversation continues
+- 🔊 **Kokoro neural TTS** — bot speaks results back in the voice channel, 7 voice models switchable via `/voice`
+- 💾 **Persistent JSON store** — all deals, transcripts, and scorecards survive backend restarts (`data/store.json`)
+- 📊 **Live web dashboard** — real-time pipeline stages, pros/cons scorecard, deal history sidebar, browser speech synthesis
+- 🔄 **Multi-guild isolation** — one deployment serves multiple Discord servers with full session separation
+- 🗑️ **Workspace management** — create, switch, and delete deal workspaces from Discord or the web UI
+
+---
+
 ## Who Is This For
 
 **Primary users:** Venture capital partners, angel investors, and deal teams who evaluate startups through conversation — in meetings, partner calls, and voice channels.
@@ -68,6 +81,24 @@ Bot (voice):  "Analysis complete. Score: 7/10. Recommendation: Invest."
 | AI Planner | [Google Gemini](https://ai.google.dev) | Native function calling enables the tool-loop orchestration pattern |
 | Analysis Worker | [Featherless.ai](https://featherless.ai) | Serverless LLM inference — no GPU setup, runs DeepSeek-V4-Flash on demand |
 | Text-to-Speech | [Kokoro-Web](https://github.com/eduardolat/kokoro-web) | Self-hosted neural TTS — zero latency, zero rate limits, zero cost |
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Version |
+|---|---|---|
+| Runtime | Node.js | 18+ |
+| Language | TypeScript | 5.x |
+| Discord | discord.js + @discordjs/voice | 14.x |
+| Audio decode | prism-media (Opus → PCM) | latest |
+| AI Orchestrator | Google Gemini API (`@google/genai`) | 2.x |
+| Analysis Worker | Featherless.ai (OpenAI-compatible) | — |
+| Speech-to-Text | Speechmatics WebSocket API | v2 |
+| Text-to-Speech | Kokoro-Web (self-hosted Docker) | latest |
+| Backend | Express.js | 4.x |
+| Database | In-memory + JSON persistence (`data/store.json`) | — |
+| Frontend | Vanilla JS + HTML (no framework) | — |
 
 ---
 
@@ -182,6 +213,30 @@ npm run start:bot
 3. Type deal pitches — watch the pipeline and scorecard update live
 
 All conversations persist to `data/store.json` and survive backend restarts.
+
+---
+
+## Project Structure
+
+```
+chorusops/
+├── backend/
+│   ├── server.ts          # Express API server + REST endpoints
+│   └── db.ts              # In-memory store with JSON persistence
+├── bot/
+│   ├── index.ts           # Discord bot, slash commands, voice pipeline
+│   ├── speechmatics.ts    # Speechmatics WebSocket client
+│   └── tts.ts             # Kokoro TTS integration
+├── worker/
+│   └── featherless.ts     # Featherless.ai deep analysis worker
+├── demo/
+│   └── index.html         # Browser demo dashboard (no framework)
+├── data/                  # Runtime only — gitignored
+│   └── store.json         # Persisted conversations, workflows, jobs
+├── .env.example           # Environment variable template
+├── package.json
+└── tsconfig.json
+```
 
 ---
 

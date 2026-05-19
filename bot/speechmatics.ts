@@ -70,9 +70,9 @@ export class SpeechmaticsClient {
           enable_partials: false,
           diarization: 'speaker',
           max_delay: 5,
-          // 0.5s of silence triggers end of utterance — recommended for voice AI (docs: 0.5-0.8s)
+          // 1.2s of silence triggers end of utterance — perfect balance between rapid response and no interruptions
           conversation_config: {
-            end_of_utterance_silence_trigger: 0.5,
+            end_of_utterance_silence_trigger: 1.2,
           },
         },
       };
@@ -108,6 +108,7 @@ export class SpeechmaticsClient {
           console.log(`[Speechmatics] Segment [${speaker}]: ${transcript.trim()}`);
           this.transcriptBuffer.push(transcript.trim());
           this.lastSpeaker = speaker;
+
           break;
         }
 
@@ -156,6 +157,11 @@ export class SpeechmaticsClient {
     this.ws.on('error', (err) => {
       console.error('[Speechmatics] WebSocket error:', err.message);
     });
+  }
+
+  forceFlush() {
+    console.log(`[Speechmatics] Force flushing buffer...`);
+    this.flushBuffer();
   }
 
   private flushBuffer() {

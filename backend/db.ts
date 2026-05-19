@@ -7,6 +7,7 @@ export interface Conversation {
   participants: string[];
   createdAt: Date;
   voice?: string;
+  speechEnabled?: boolean;
 }
 
 export interface Workflow {
@@ -121,7 +122,8 @@ class InMemoryStore {
       participants, 
       channelId, 
       createdAt: new Date(),
-      voice: process.env.TTS_VOICE || 'af_heart'
+      voice: process.env.TTS_VOICE || 'af_heart',
+      speechEnabled: false
     };
     this.conversations.set(id, conv);
     this.saveToDisk();
@@ -132,6 +134,14 @@ class InMemoryStore {
     const conv = this.conversations.get(id);
     if (conv) {
       conv.voice = voice;
+      this.saveToDisk();
+    }
+  }
+
+  setConversationSpeech(id: string, enabled: boolean): void {
+    const conv = this.conversations.get(id);
+    if (conv) {
+      conv.speechEnabled = enabled;
       this.saveToDisk();
     }
   }

@@ -22,7 +22,7 @@ import { geminiClient } from './gemini';
 // handle incoming transcript turns
 app.post('/agent/invoke', async (req: Request, res: Response) => {
   try {
-    const { conversationId, text, speakerId } = req.body;
+    const { conversationId, text, speakerId, type } = req.body;
     
     if (!conversationId || !text) {
       return res.status(400).json({ error: 'Missing conversationId or text' });
@@ -54,11 +54,14 @@ app.post('/agent/invoke', async (req: Request, res: Response) => {
 
     const jobIdsBefore = new Set(db.jobs.keys());
 
-    console.log(`[Backend] Received input for ${conversationId} from ${speakerId || 'unknown'}: ${text}`);
+    console.log(`[Backend] Received input for ${conversationId} from ${speakerId || 'unknown'} (type: ${type || 'unknown'}): ${text}`);
 
     const inputWithContext = speakerId ? `[Speaker: ${speakerId}] ${text}` : text;
-    const contextPrompt =
-      `[System: conversationId=${conversationId}, activeWorkflowId=${workflow.id}]\n${inputWithContext}`;
+    let contextPrompt = `[System: conversationId=${conversationId}, activeWorkflowId=${workflow.id}]\n`;
+    if (type === 'voice') {
+      contextPrompt += `[System Instruction: This is a real-time VOICE channel. Keep your reply extremely brief, clear, and direct. Use at most 1 or 2 simple conversational sentences. Do NOT use markdown, bullet points, lists, or headers. Answer directly and naturally as a voice assistant.]\n`;
+    }
+    contextPrompt += inputWithContext;
 
     const agentResponse = await geminiClient.processInput(conversationId, contextPrompt, inputWithContext);
 
@@ -124,7 +127,8 @@ app.get('/api/conversations/:id', (req: Request, res: Response) => {
   res.json({ 
     history, 
     workflowId: latestWorkflow?.id,
-    voice: conversation?.voice || 'af_heart'
+    voice: conversation?.voice || 'af_heart',
+    speechEnabled: conversation?.speechEnabled ?? false
   });
 });
 
@@ -136,6 +140,16 @@ app.patch('/api/conversations/:id/voice', (req: Request, res: Response) => {
   }
   db.setConversationVoice(id, voice);
   res.json({ success: true, voice });
+});
+
+app.patch('/api/conversations/:id/speech', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'Missing or invalid enabled parameter' });
+  }
+  db.setConversationSpeech(id, enabled);
+  res.json({ success: true, enabled });
 });
 
 app.delete('/api/conversations/:id', (req: Request, res: Response) => {
