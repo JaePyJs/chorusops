@@ -58,13 +58,15 @@ The full loop: **Voice In → AI Brain → Voice Out**. No forms. No context-swi
 
 ## Live Demo
 
+🚀 **Try the Live Replit Demo here:** [https://replit.com/@J4EDev/chorusops](https://replit.com/@J4EDev/chorusops)
+
 ```
-You (voice):  "Let's look at NovaPay. B2B payments, $2M seed, targeting SEA."
-Bot (voice):  "Got it. What can you tell me about the team?"
-You (voice):  "Three ex-Stripe engineers. CEO led payments at GrabPay."
-Bot (voice):  "Strong signal. Running deep analysis now."
+You (voice):  "We're building a B2B logistics SaaS for last-mile delivery optimization. Three-person founding team of engineers and a former DHL operations lead. We're targeting a $4B market and raising $500K seed."
+Bot (voice):  "Okay, I've noted the details for 'Logistics SaaS for Last-Mile Delivery Optimization,' including the team, market, and funding ask."
+You (voice):  "Now for due diligence, run deep analysis on this deal."
+Bot (voice):  "Deep analysis has been queued for this deal."
               ... 15 seconds ...
-Bot (voice):  "Analysis complete. Score: 7/10. Recommendation: Invest."
+Bot (voice):  "Analysis complete. Score: 6/10. Recommendation: Pass."
 ```
 
 ![ChorusOps Discord Bot](discord.png)
