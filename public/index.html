@@ -18,7 +18,7 @@
       --pink:    #F472B6;
       --gold:    #FBBF24;
       --white:   #EFF6FF;
-      --sub:     #64748B;
+      --sub:     #A1B1C6;
       --border:  rgba(255,255,255,0.07);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,14 +60,6 @@
       max-width: 680px; margin: 64px auto 48px;
       padding: 0 24px; text-align: center;
     }
-    .hero-eyebrow {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 11px; font-weight: 600; letter-spacing: 1.2px;
-      color: var(--teal); text-transform: uppercase; margin-bottom: 20px;
-    }
-    .hero-eyebrow::before, .hero-eyebrow::after {
-      content:''; display:block; width:24px; height:1px; background:var(--teal); opacity:0.4;
-    }
     .hero h1 {
       font-size: clamp(28px,5vw,44px); font-weight: 700;
       letter-spacing: -1px; line-height: 1.15; margin-bottom: 16px;
@@ -77,13 +69,24 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .hero p { font-size: 15px; color: var(--sub); max-width: 520px; margin: 0 auto; }
+    .sample-link {
+      display: inline-block; margin-top: 24px; padding: 12px 20px;
+      border-radius: 10px; background: var(--teal); color: #060e1a;
+      font-weight: 700; text-decoration: none;
+    }
+    .sample-link:hover { text-decoration: underline; }
+    :where(a, button, textarea):focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+    .hero .sample-note { margin-top: 10px; font-size: 13px; }
 
     .grid {
       max-width: 1100px; margin: 0 auto 48px;
       padding: 0 24px;
       display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
     }
-    @media(max-width:760px){ .grid { grid-template-columns: 1fr; } }
+    @media(max-width:760px){
+      nav { flex-wrap: wrap; gap: 10px; padding: 12px 24px; position: static; }
+      .grid { grid-template-columns: minmax(0, 1fr); }
+    }
     .full { grid-column: 1/-1; }
 
     .card {
@@ -105,7 +108,6 @@
       transition: border-color .2s, box-shadow .2s;
     }
     textarea:focus {
-      outline: none;
       border-color: rgba(45,212,191,0.4);
       box-shadow: 0 0 0 3px rgba(45,212,191,0.08);
     }
@@ -236,20 +238,22 @@
   </div>
 </nav>
 
-<div class="hero">
-  <div class="hero-eyebrow">Live Demo</div>
-  <h1>Your voice is the<br/><span>only interface.</span></h1>
-  <p>Type a startup pitch. The agent tracks the deal, dispatches analysis, and returns a scored investment scorecard — no clicks required.</p>
-</div>
+<main>
+<header class="hero">
+  <h1>From startup pitch to <span>deal scorecard</span></h1>
+  <p>ChorusOps started as a Discord voice workflow. Follow a fictional pitch through a speaker transcript, deal notes, and a scorecard.</p>
+  <a class="sample-link" href="sample.html" aria-describedby="sample-note">Run the sample</a>
+  <p class="sample-note" id="sample-note">Guided replay with prewritten outputs. No microphone or account needed.</p>
+</header>
 
 <div class="grid">
 
   <!-- INPUT -->
   <div class="card">
-    <div class="card-label" style="color:var(--teal)">Pitch Input</div>
-    <div class="card-title">Talk to the agent</div>
-    <div class="card-sub">Step 1 — describe the startup. Step 2 — request analysis. Watch it work.</div>
-    <textarea id="pitchInput" placeholder="Describe your startup pitch...">We're building a B2B logistics SaaS for last-mile delivery optimization. Three-person founding team — two engineers and a former DHL operations lead. We're targeting a $4 billion addressable market and raising a $500k seed round.</textarea>
+    <h2 class="card-title">Live text demo</h2>
+    <p class="card-sub" id="live-input-help">Send a pitch to the hosted ChorusOps backend, then request analysis. Use sample or public information.</p>
+    <label class="card-label" for="pitchInput" style="color:var(--teal)">Pitch text</label>
+    <textarea id="pitchInput" aria-describedby="live-input-help">We're building a B2B logistics SaaS for last-mile delivery optimization. Three-person founding team — two engineers and a former DHL operations lead. We're targeting a $4 billion addressable market and raising a $500k seed round.</textarea>
     <div class="btn-row">
       <button class="btn btn-primary" id="runBtn" onclick="runAgent()">Send Pitch →</button>
       <button class="btn btn-secondary" id="analyzeBtn" onclick="requestAnalysis()" disabled>⚡ Request Analysis</button>
@@ -274,7 +278,7 @@
   <div class="card">
     <div class="card-label" style="color:var(--lav)">Deal State</div>
     <div class="card-title">Live pipeline tracker</div>
-    <div class="card-sub">Gemini updates these fields as you speak.</div>
+    <div class="card-sub">The hosted Gemini workflow updates these fields after you send text.</div>
     <div class="field-row">
       <div class="field">
         <div class="fl">Stage</div>
@@ -331,7 +335,7 @@
   <!-- PIPELINE -->
   <div class="card full">
     <div class="card-label" style="color:var(--sub)">How it works</div>
-    <div class="card-title" style="margin-bottom:20px">End-to-end agentic pipeline</div>
+    <div class="card-title" style="margin-bottom:20px">Discord voice pipeline</div>
     <div class="pipe-wrap">
       <div class="pnode" style="border-color:rgba(96,165,250,0.3)">
         <div class="pi">🎤</div>
@@ -366,6 +370,7 @@
   </div>
 
 </div>
+</main>
 
 <footer>
   <strong>ChorusOps</strong> &nbsp;·&nbsp; Built by Jae &nbsp;·&nbsp; Team J4D &nbsp;·&nbsp; AI Agent Olympics 2026<br/>

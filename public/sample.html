@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sample walkthrough | ChorusOps</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #080f1c;
+      --surface: #111f33;
+      --line: #334861;
+      --text: #eff6ff;
+      --muted: #b1bfd0;
+      --teal: #2dd4bf;
+      --gold: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font: 1rem/1.65 Inter, system-ui, sans-serif;
+    }
+    .frame { max-width: 60rem; margin-inline: auto; padding-inline: clamp(1rem, 4vw, 2rem); }
+    .site-header { border-bottom: 1px solid var(--line); }
+    .site-header .frame {
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1.5rem;
+      padding-block: 1rem;
+    }
+    a { color: var(--teal); text-underline-offset: .2em; }
+    .brand { color: var(--text); font-weight: 700; }
+    main { padding-block: clamp(2rem, 7vw, 4.5rem); }
+    .intro { max-width: 43rem; margin-bottom: 2rem; }
+    h1, h2, h3 { margin: 0; line-height: 1.18; }
+    h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.045em; }
+    h2 { font-size: clamp(1.25rem, 3vw, 1.65rem); letter-spacing: -.02em; }
+    h3 { font-size: 1rem; }
+    p { margin: 0; }
+    .intro p { margin-top: .8rem; color: var(--muted); }
+    .step {
+      border: 1px solid var(--line);
+      border-radius: .85rem;
+      padding: clamp(1rem, 4vw, 2rem);
+      margin-top: 1rem;
+      background: var(--surface);
+    }
+    .step h2 > span {
+      display: block; margin-bottom: .4rem;
+      font-size: .82rem; letter-spacing: 0; color: var(--teal);
+    }
+    .step-note { color: var(--muted); margin-top: .65rem; }
+    .pitch {
+      margin: 1.35rem 0 0; padding: .2rem 0 .2rem 1.1rem; border-left: 3px solid var(--teal);
+      max-width: 38rem; font-size: clamp(1.1rem, 2.5vw, 1.3rem);
+    }
+    .turns { list-style: none; padding: 0; margin: 1.1rem 0 0; }
+    .turns li {
+      display: grid; grid-template-columns: 8rem minmax(0, 1fr);
+      gap: .25rem 1.2rem; padding: .85rem 0; border-bottom: 1px solid var(--line);
+    }
+    .speaker, dt { font-weight: 700; }
+    .speaker small { display: block; color: var(--muted); font-weight: 400; }
+    .notes, .analysis {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.5rem;
+      margin: .8rem 0 0;
+    }
+    .notes dt { font-size: .9rem; }
+    .notes dd { margin: 0; color: var(--muted); }
+    .notes-heading { margin-top: 1.5rem; }
+    .score {
+      display: flex; align-items: baseline; flex-wrap: wrap; gap: .2rem 1rem;
+      margin: 1.25rem 0; border-block: 1px solid var(--line); padding: .85rem 0;
+    }
+    .score strong { color: var(--gold); font-size: 1.5rem; }
+    .analysis ul { margin: .4rem 0 0; padding-left: 1.2rem; color: var(--muted); }
+    .analysis li + li { margin-top: .4rem; }
+    button {
+      margin-top: 1.4rem; padding: .65rem 1rem; border: 1px solid var(--teal);
+      border-radius: .55rem; color: #071421; background: var(--teal);
+      font: inherit; font-weight: 700; cursor: pointer;
+    }
+    button:hover { text-decoration: underline; }
+    :where(a, button, h2):focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+    @media (max-width: 34rem) {
+      .turns li, .notes, .analysis { grid-template-columns: 1fr; }
+      .speaker small { display: inline; margin-left: .4rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="frame">
+      <a class="brand" href="index.html">ChorusOps</a>
+      <span>Sample walkthrough</span>
+    </div>
+  </header>
+
+  <main class="frame">
+    <div class="intro">
+      <h1>A pitch you can trace</h1>
+      <p>Follow a fictional delivery startup from pitch to scorecard. The transcript, deal notes, and scorecard are prewritten. This replay runs in your browser without audio capture or provider calls.</p>
+    </div>
+
+    <section class="step" aria-labelledby="pitch-heading">
+      <h2 id="pitch-heading" tabindex="-1"><span>1 of 3</span> ParcelPilot’s pitch</h2>
+      <blockquote class="pitch">
+        <p>“ParcelPilot helps regional couriers plan last-mile routes. Two engineers and a former delivery operations lead built it. Three couriers are testing it in unpaid pilots, and we’re raising $500,000 to build dispatch integrations.”</p>
+      </blockquote>
+      <button type="button" data-reveal="sample-transcript" aria-controls="sample-transcript" hidden>Show sample transcript</button>
+    </section>
+
+    <section class="step" id="sample-transcript" aria-labelledby="transcript-heading">
+      <h2 id="transcript-heading" tabindex="-1"><span>2 of 3</span> Speaker transcript and deal notes</h2>
+      <p class="step-note">In the Discord workflow, Speechmatics transcribes audio and identifies speakers. Gemini uses the transcript to track deal context. Here, the speaker turns and extracted notes are scripted.</p>
+      <ol class="turns" role="list">
+        <li>
+          <div class="speaker">Founder <small>Speaker 1</small></div>
+          <p>We have three couriers testing ParcelPilot in unpaid pilots. Two are sending us route data every week.</p>
+        </li>
+        <li>
+          <div class="speaker">Reviewer <small>Speaker 2</small></div>
+          <p>How much driver time are you saving? And what would it take for a courier to switch from their existing dispatch system?</p>
+        </li>
+        <li>
+          <div class="speaker">Founder <small>Speaker 1</small></div>
+          <p>We haven’t measured driver time yet. The $500,000 round would fund integrations so couriers can keep their dispatch tools.</p>
+        </li>
+      </ol>
+      <h3 class="notes-heading">Deal notes</h3>
+      <dl class="notes">
+        <div><dt>Funding ask</dt><dd>$500,000 for dispatch integrations</dd></div>
+        <div><dt>Traction</dt><dd>Three unpaid pilots, two sending weekly route data</dd></div>
+        <div><dt>Team</dt><dd>Two engineers and a former delivery operations lead</dd></div>
+        <div><dt>Open question</dt><dd>How much driver time does the product save?</dd></div>
+      </dl>
+      <button type="button" data-reveal="sample-scorecard" aria-controls="sample-scorecard" hidden>Show sample scorecard</button>
+    </section>
+
+    <section class="step" id="sample-scorecard" aria-labelledby="scorecard-heading">
+      <h2 id="scorecard-heading" tabindex="-1"><span>3 of 3</span> Sample scorecard</h2>
+      <p class="step-note">The live workflow queues a Featherless worker for analysis. This fictional scorecard shows the shape of its output.</p>
+      <div class="score">
+        <strong>6 of 10</strong>
+        <span>Sample outcome · Follow-up questions</span>
+      </div>
+      <p class="step-note">The pilots give ParcelPilot a way to measure route improvements. Confirming the time saved and the work needed for each integration would help explain whether the product solves a problem couriers would pay for.</p>
+      <div class="analysis">
+        <div>
+          <h3>Strengths</h3>
+          <ul>
+            <li>Two pilots already supply weekly route data for testing.</li>
+            <li>The team brings engineering and delivery operations experience.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Risks</h3>
+          <ul>
+            <li>Unpaid pilots leave willingness to pay unknown.</li>
+            <li>Driver time savings and integration effort still need measurement.</li>
+          </ul>
+        </div>
+      </div>
+      <button type="button" id="replay" hidden>Replay sample</button>
+    </section>
+  </main>
+
+  <script>
+    const revealButtons = [...document.querySelectorAll('[data-reveal]')];
+    const sections = revealButtons.map(button => document.getElementById(button.dataset.reveal));
+    const replay = document.getElementById('replay');
+
+    function resetSample() {
+      sections.forEach(section => { section.hidden = true; });
+      revealButtons.forEach(button => { button.hidden = false; });
+    }
+
+    revealButtons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        const section = sections[index];
+        section.hidden = false;
+        button.hidden = true;
+        section.querySelector('h2').focus();
+      });
+    });
+
+    replay.addEventListener('click', () => {
+      document.getElementById('pitch-heading').focus();
+      resetSample();
+    });
+
+    resetSample();
+    replay.hidden = false;
+  </script>
+</body>
+</html>
