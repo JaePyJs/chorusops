@@ -56,9 +56,13 @@ The full loop: **Voice In → AI Brain → Voice Out**. No forms. No context-swi
 
 ---
 
-## Live Demo
+## Demo
 
-🚀 **Try the Live Demo here:** [https://chorusops.vercel.app](https://chorusops.vercel.app)
+The public entry offers a [guided sample](public/sample.html) and a hosted text demo. Open `public/sample.html` directly in a browser to follow a fictional pitch through a speaker-attributed transcript, deal notes, and a sample scorecard. The replay uses prewritten content and runs without microphone access, a backend, or API keys.
+
+The live text demo in `public/index.html` sends pitches and analysis requests to the hosted ChorusOps backend. It uses Gemini for orchestration and Featherless for analysis when those services are configured. Use sample or public information when entering a pitch. The hosted project is linked at [chorusops.vercel.app](https://chorusops.vercel.app).
+
+Example of the separate Discord voice workflow:
 
 ```
 You (voice):  "We're building a B2B logistics SaaS for last-mile delivery optimization. Three-person founding team of engineers and a former DHL operations lead. We're targeting a $4B market and raising $500K seed."
@@ -128,7 +132,7 @@ Gemini Orchestrator  (function calling loop)
           ▼                    ▼
     Kokoro TTS            Web Dashboard
   (Voice Out in         (demo/index.html —
-   voice channel)        live pipeline view)
+   voice channel)        provider-backed dashboard)
 ```
 
 ---
@@ -208,7 +212,7 @@ npm run start:bot
 
 ---
 
-## Browser Demo (No Discord Required)
+## Local Browser Dashboard (No Discord Required)
 
 1. `npm run start:backend`
 2. Open `demo/index.html` in your browser
